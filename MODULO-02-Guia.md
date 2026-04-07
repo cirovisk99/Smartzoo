@@ -1,101 +1,110 @@
 # Módulo 2 — Guia de Upload
 
-> Detecção de Presença com TFLite — MVP com pessoa, produção com animal
+> Detecção de Presença + Contagem + Localização (Background Subtraction)
+
+**Status: Concluído**
 
 ---
 
-## O que muda neste módulo
+## Hardware necessário
 
-O firmware agora roda um modelo de **machine learning** (MobileNet INT8 quantizado) diretamente no ESP32-S3 para detectar se há alguém na câmera. Nenhuma mudança de hardware — continua só o XIAO + USB-C.
-
-Para MVP testamos com **pessoa**. Na produção, o modelo será trocado por um treinado para o animal da jaula.
+- ESP32-S3 Sense (XIAO) + cabo USB-C
+- Nenhuma mudança em relação ao Módulo 1
 
 ---
 
 ## Upload do Código
 
-A biblioteca `Arduino_TensorFlowLite` foi originalmente escrita para Arduino Nano 33 BLE (nRF52) e não compila direto no ESP32. O script `scripts/setup_tflite.py` corrige isso automaticamente antes de cada build.
+### Passo 1: Compilar e fazer upload
+Na barra do PlatformIO: **Build (✓)** → **Upload (→)**
 
-### Passo 1: Primeira compilação (duas etapas)
+> Build agora é rápido (~30s) — sem TFLite.
 
-**1ª vez — baixar dependências:**
-Na barra do PlatformIO, clique em **Build** (visto ✓).
-A compilação vai **falhar** na primeira vez — isso é esperado. O PlatformIO precisa baixar a biblioteca (~60MB) antes que o script de correção possa rodar.
+### Passo 2: Monitor Serial (115200 baud)
 
-**2ª vez — build real:**
-Clique em **Build** novamente.
-Desta vez o script `setup_tflite.py` corrige os arquivos nRF52 e copia os dados do modelo para `src/`. Aguarde `SUCCESS`.
+---
 
-> A partir da segunda vez, o build funciona normalmente com um único clique.
+## Calibração inicial
 
-### Passo 2: Upload
-Clique na **seta (→) Upload**.
+Ao ligar, a câmera precisa capturar o background da **cena vazia** (sem animal).
 
-### Passo 3: Monitor Serial
-Clique no ícone de **tomada (Serial Monitor)**, selecione **115200** baud.
+1. Aponte a câmera para a jaula vazia
+2. Aguarde ~3 segundos
+3. O background é calibrado automaticamente quando 10 frames consecutivos ficam abaixo do threshold
 
 ---
 
 ## O que você deve ver
 
-**Inicialização:**
+**Cena vazia (calibrando):**
 ```
-=== SmartZoo — Módulo 2: Detecção de Presença ===
-Inicializando câmera... OK
-Carregando modelo TFLite... OK
-Tensor arena: 100 KB na PSRAM
-Pronto. Aponte a câmera para uma pessoa...
+inactive | count: 0 | zone: -           | bg_diff: 0.008
+inactive | count: 0 | zone: -           | bg_diff: 0.011
 ```
 
-**Sem ninguém na câmera:**
+**1 pessoa/animal detectado:**
 ```
-Status: inactive  | score: 0.18 (presente) / 0.82 (ausente)
-Status: inactive  | score: 0.21 (presente) / 0.79 (ausente)
-```
-
-**Com pessoa na câmera:**
-```
-Status: ACTIVE    | score: 0.87 (presente) / 0.13 (ausente)
-Status: ACTIVE    | score: 0.91 (presente) / 0.09 (ausente)
-Status: inactive  | score: 0.54 (presente) / 0.46 (ausente)
+ACTIVE   | count: 1 | zone: center      | bg_diff: 0.213
+ACTIVE   | count: 1 | zone: center      | bg_diff: 0.198
 ```
 
-O status muda para `ACTIVE` quando `score >= 0.70` (70% de confiança).
+**2 pessoas/animais detectados:**
+```
+ACTIVE   | count: 2 | zone: bottom_left | bg_diff: 0.341
+```
+
+**Após sair da cena** (~3s para confirmar inactive):
+```
+inactive | count: 0 | zone: -           | bg_diff: 0.031
+inactive | count: 0 | zone: -           | bg_diff: 0.014
+```
 
 ---
 
-## Parâmetro ajustável
+## Capturar imagem de referência para mapear zonas
 
-| Constante | Valor padrão | Efeito |
-|-----------|-------------|--------|
-| `DETECTION_THRESHOLD` | `0.70` | Limiar de confiança. Reduzir → mais sensível (mais falsos positivos). Aumentar → mais restrito. |
+Envie `s` pelo monitor serial para receber um JPEG VGA em base64:
+
+```
+[SNAPSHOT] Capturando imagem de referência (VGA JPEG)...
+[SNAPSHOT] 28432 bytes JPEG → 37912 chars base64
+>>>SNAPSHOT_START<<<
+/9j/4AAQSkZJRgAB...
+>>>SNAPSHOT_END<<<
+[SNAPSHOT] Cole em: https://base64.guru/converter/decode/image
+```
+
+Com a imagem, mapeie cada célula da grade 3×3 para a descrição real da jaula:
+
+```
+top_left    → "próximo à rocha"
+top_center  → "sob a sombra da árvore"
+top_right   → "perto do bebedouro"
+left        → "na área gramada esquerda"
+center      → "centro da jaula"
+right       → "próximo ao tronco"
+bottom_left → "no canto, perto das árvores"
+...
+```
+
+Esse mapeamento vai para a tabela `cage_zones` do backend (SPEC-02).
 
 ---
 
-## Possíveis problemas
+## Parâmetros ajustáveis no código
 
-| Problema | Causa | Solução |
-|----------|-------|---------|
-| `ERRO: ps_malloc falhou` | PSRAM não está ativa | Verifique se `board_build.arduino.memory_type = qio_opi` está no `platformio.ini` |
-| `ERRO: AllocateTensors falhou` | Tensor arena pequeno | Aumente `kTensorArenaSize` para `150 * 1024` |
-| Sempre `inactive` com pessoa | Iluminação ruim ou câmera longe | Aproxime-se a menos de 1 metro; melhore a iluminação |
-| Compilação falha na 1ª vez | Normal — lib ainda não foi baixada | Clique em Build uma segunda vez |
-| `#error "unsupported board"` ainda aparece | Script não rodou ou lib estava em cache | Delete `.pio/libdeps` e recompile duas vezes |
-| `person_detect_model_data.h` not found | Script não encontrou o arquivo na lib | Verifique se `examples/person_detection/` existe em `.pio/libdeps/.../Arduino_TensorFlowLite/` |
-
----
-
-## Como trocar para modelo de animal (produção)
-
-1. Treine ou obtenha um modelo TFLite INT8 96x96 grayscale para o animal
-2. Converta para C array: `xxd -i modelo.tflite > animal_model_data.h`
-3. No `main.cpp`, troque:
-   - `#include "person_detect_model_data.h"` → `#include "animal_model_data.h"`
-   - `g_person_detect_model_data` → `g_animal_model_data`
-   - Ajuste os índices de saída conforme as classes do novo modelo
+| Constante | Valor | Efeito |
+|-----------|-------|--------|
+| `BG_PIXEL_THRESHOLD` | `25` | Sensibilidade por pixel |
+| `BG_AREA_THRESHOLD` | `0.10` | % mínimo de pixels para detectar presença |
+| `BG_ALPHA` | `20` | Velocidade de adaptação do background (~20 frames) |
+| `FRAMES_TO_ACTIVATE` | `2` | Frames positivos para confirmar ACTIVE |
+| `FRAMES_TO_DEACTIVATE` | `10` | Frames negativos para confirmar inactive (~3s) |
+| `CELL_ACTIVE_THRESHOLD` | `15` | Pixels ativos por célula 12×12 |
+| `MIN_BLOB_CELLS` | `3` | Células mínimas para contar como animal |
 
 ---
 
 ## Próximo passo
 
-Módulo 3 — WiFi + MQTT Client (publicar status e snapshots para o servidor).
+Módulo 3 — WiFi + MQTT Client (publicar status, contagem e snapshots para o servidor).

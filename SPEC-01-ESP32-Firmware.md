@@ -1,16 +1,18 @@
 # SPEC-01 — Unidade de Captura (Jaula / ESP32-S3)
 
 **Papel:** Engenheiro de Hardware & Firmware
-**Módulo:** Edge AI + MQTT Client
+**Módulo:** Visão Computacional + MQTT Client
 
 ---
 
 ## 1. Visão Geral
 
-Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 fixa. O dispositivo processa imagens localmente para classificar o status do animal e comunica-se com o servidor central via MQTT. Alimentado via USB-C.
+Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 fixa. O dispositivo processa imagens localmente via background subtraction para detectar presença, contar animais e localizar a zona de atividade. Comunica-se com o servidor central via MQTT. Alimentado via USB-C.
 
 ```
-[OV2640 fixo] → [ESP32-S3] → classifica → publica MQTT
+[OV2640 fixo] → [ESP32-S3] → background subtraction → publica MQTT
+                                    ↓
+                            contagem + zona (grade 3×3)
 ```
 
 ---
@@ -22,19 +24,22 @@ Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 
 | ESP32-S3 Sense (câmera OV2640 integrada) | 1 | Processamento de visão e Wi-Fi |
 | Cabo USB-C | 1 | Alimentação e programação |
 
-> Os pinos de câmera são internos ao módulo ESP32-S3 Sense. Nenhum componente externo adicional necessário.
+> Câmera interna ao módulo. Nenhum componente externo necessário.
 
 ---
 
 ## 3. Requisitos Funcionais
 
-| ID | Requisito | Prioridade |
-|----|-----------|------------|
-| RF01 | Detectar presença do animal via modelo de visão computacional (TFLite, 96x96 INT8) | Alta |
-| RF02 | Publicar metadados via MQTT: `cage_id`, `status`, `activity_level`, `timestamp` | Alta |
-| RF03 | Capturar e enviar snapshot (JPEG base64) sob demanda ou em intervalo configurável | Média |
+| ID | Requisito | Prioridade | Status |
+|----|-----------|------------|--------|
+| RF01 | Detectar presença do animal via background subtraction adaptativo | Alta | ✓ Implementado |
+| RF02 | Contar número de animais via blob detection em grade 8×8 | Alta | ✓ Implementado |
+| RF03 | Localizar zona de atividade principal (grade 3×3) | Alta | ✓ Implementado |
+| RF04 | Publicar metadados via MQTT: `cage_id`, `status`, `activity_level`, `animal_count`, `zone`, `ts` | Alta | Módulo 3 |
+| RF05 | Capturar e enviar snapshot JPEG base64 sob demanda via MQTT | Média | Módulo 3 |
+| RF06 | Capturar snapshot de referência via comando serial para mapear zonas | Média | ✓ Implementado |
 
-> **MVP:** modelo de detecção de pessoa (MobileNet quantizado) como substituto. Para produção, substituir pelo modelo de animal treinado.
+> **Nota de design:** TFLite (MobileNet person detection) foi avaliado e descartado para MVP — modelo genérico tem baixa acurácia para animais/poses variadas. Background subtraction é mais robusto para câmera estática em ambiente controlado. Para produção futura com detecção por espécie: treinar modelo customizado no Edge Impulse.
 
 ---
 
@@ -48,22 +53,28 @@ Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 
 {
   "cage_id": "cage_leao_01",
   "status": "active",
-  "activity_level": 0.85,
+  "activity_level": 0.187,
+  "animal_count": 2,
   "zone": "bottom_left",
   "ts": "2024-01-15T14:32:10Z"
 }
 ```
 
-- `status`: `"active"` | `"inactive"`
-- `activity_level`: float 0.0–1.0 (score de confiança do modelo)
-- `zone`: posição na grade 3×3 do frame — `"top_left"` | `"top_center"` | `"top_right"` | `"left"` | `"center"` | `"right"` | `"bottom_left"` | `"bottom_center"` | `"bottom_right"` | `null` (quando inativo ou background ainda não calibrado)
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `status` | string | `"active"` \| `"inactive"` |
+| `activity_level` | float 0–1 | Fração de pixels alterados vs background |
+| `animal_count` | int | Blobs com ≥ 3 células ativas na grade 8×8 |
+| `zone` | string \| null | Posição do animal principal na grade 3×3; `null` se inativo |
 
-**`zoo/cage/{cage_id}/snapshot`** — publicado sob demanda ou por intervalo
+**Valores de `zone`:** `top_left` · `top_center` · `top_right` · `left` · `center` · `right` · `bottom_left` · `bottom_center` · `bottom_right`
+
+**`zoo/cage/{cage_id}/snapshot`** — publicado sob demanda
 
 ```json
 {
   "cage_id": "cage_leao_01",
-  "image_base64": "<string JPEG em base64>",
+  "image_base64": "<JPEG VGA em base64>",
   "ts": "2024-01-15T14:32:10Z"
 }
 ```
@@ -78,43 +89,48 @@ Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 
 { "action": "set_interval", "value": 30 }
 ```
 
-- `snapshot`: força captura e publicação imediata
-- `reboot`: reinicia o dispositivo
-- `set_interval`: altera intervalo de publicação (segundos)
-
 ---
 
 ## 5. Lógica de Firmware
 
-### 5.1 Detecção de Presença (TFLite Inference)
+### 5.1 Detecção de Presença (Background Subtraction Adaptativo)
 
 ```
-1. Capturar frame 96x96 grayscale
-2. Copiar frame para o tensor de entrada do modelo
-3. Executar inferência (MobileNet INT8)
-4. Ler score de presença (índice 1 do tensor de saída)
-5. Se score >= DETECTION_THRESHOLD → status = "active", activity_level = score
-6. Senão → status = "inactive", activity_level = score
+1. Capturar frame 96×96 grayscale
+2. Comparar pixel a pixel com background
+3. Contar pixels com diff > 25
+4. activity_level = pixels_alterados / total_pixels
+5. rawActive = activity_level > 10%
+6. Aplicar histerese:
+   - rawActive por ≥ 2 frames consecutivos → confirmed_active = true
+   - rawInactive por ≥ 10 frames consecutivos → confirmed_active = false
+7. Quando inativo: background += (frame - background) / 20  (aprendizado lento)
 ```
 
-- Modelo: MobileNet quantizado INT8, 96x96 grayscale
-- `DETECTION_THRESHOLD` (default): `0.70` (70% de confiança)
-- Tensor arena: 100 KB na PSRAM do ESP32-S3
-- Taxa: ~3 inferências/segundo
-- **MVP:** modelo de pessoa — produção: trocar `g_person_detect_model_data` por modelo de animal
+### 5.2 Contagem e Localização (Blob Detection em Grade 8×8)
 
-### 5.2 Configuração de Rede
+```
+1. Dividir frame 96×96 em grade 8×8 (células de 12×12px)
+2. Célula ativa se ≥ 15 dos 144 pixels diferem do background
+3. Flood fill DFS nas 64 células (4-conectividade)
+4. Blob = grupo de células conectadas com ≥ 3 células
+5. animal_count = número de blobs válidos
+6. zone = centróide do maior blob → mapeado para grade 3×3
+```
 
-- Broker MQTT: IP fixo do Raspberry Pi na rede local (configurável via `#define`)
-- Porta MQTT: `1883`
+**Por que grade e não pixel a pixel:** objeto em movimento gera diff na posição atual e na anterior (ghost), fragmentando em múltiplos blobs. Células de 12×12px absorvem o ghost naturalmente.
+
+### 5.3 Configuração de Rede
+
+- Broker MQTT: IP fixo do Raspberry Pi (`#define MQTT_BROKER`)
+- Porta: `1883`
 - Client ID: `esp32_{cage_id}_{MAC_SUFFIX}`
-- Keep-alive: `60s`
-- Reconexão automática em caso de queda
+- Keep-alive: `60s` · Reconexão automática
 
-### 5.3 Intervalo de Publicação
+### 5.4 Intervalo de Publicação
 
-- Default: publicar status a cada **10 segundos**
-- Snapshots automáticos: desabilitados por default; ativar via `set_interval`
+- Status: a cada **10 segundos** (default)
+- Snapshots automáticos: desabilitados; ativar via `set_interval`
 
 ---
 
@@ -132,16 +148,16 @@ Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 
 ## 7. Stack Técnica
 
 - **Linguagem:** C++ (PlatformIO)
-- **Biblioteca MQTT:** `PubSubClient`
-- **Câmera:** `esp32-camera` driver (já integrado no ESP32-S3 Sense)
-- **Inferência:** `tflite-micro-arduino-examples` (TFLite Micro, tensor arena na PSRAM)
+- **Câmera:** `espressif/esp32-camera`
+- **MQTT:** `PubSubClient` (Módulo 3)
+- **Visão:** Background subtraction + blob detection (implementação própria, sem dependência ML)
 
 ---
 
 ## 8. Entregas
 
-- [ ] **E1.1** — Câmera inicializando e capturando frames confirmado no monitor serial
-- [ ] **E1.2** — Detecção de movimento funcional com classificação Ativo/Inativo no monitor serial
+- [x] **E1.1** — Câmera OV2640 inicializando, frames capturados confirmados no serial
+- [x] **E1.2** — Detecção, contagem e localização funcionais no monitor serial; snapshot de referência via comando `s`
 - [ ] **E1.3** — Publicação de status e snapshots via MQTT (verificado com MQTT Explorer)
 
 ---
@@ -150,13 +166,15 @@ Cada jaula é um nó autônomo baseado no **ESP32-S3 Sense** com câmera OV2640 
 
 | Dependência | Módulo | Detalhe |
 |-------------|--------|---------|
-| Broker MQTT rodando | SPEC-02 (Backend) | O ESP32 precisa do IP e porta do broker antes de testar RF02 |
-| Formato do payload acordado | SPEC-02 (Backend) | Schema JSON desta spec é o contrato — qualquer mudança deve ser alinhada |
+| Broker MQTT rodando | SPEC-02 | ESP32 precisa do IP antes de testar RF04 |
+| Schema JSON acordado | SPEC-02 | Payload desta spec é o contrato |
+| Tabela `cage_zones` populada | SPEC-02 | Mapeamento zone → descrição por jaula |
 
 ---
 
 ## 10. Critérios de Aceite
 
-- Pelo menos 1 unidade publicando `zoo/cage/{id}/status` com dados válidos a cada ≤ 10s
+- Unidade publicando `zoo/cage/{id}/status` com dados válidos a cada ≤ 10s
+- `animal_count` estável (±1) com cena parada
 - Dispositivo reconecta ao MQTT automaticamente após queda de rede
-- Comando `snapshot` via MQTT retorna imagem JPEG válida em base64
+- Comando `snapshot` via MQTT retorna JPEG VGA válido em base64
