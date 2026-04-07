@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SmartZoo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --color-active: #4CAF50;
+        --color-inactive: #9E9E9E;
+        --color-primary: #2E7D32;
+        --color-bg: #F5F5F5;
+        --color-surface: #FFFFFF;
+        --color-text: #212121;
+      }
+
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: rgba(46, 125, 50, 0.2);
+      }
+
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Inter', sans-serif;
+        font-size: 18px;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        cursor: default;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      /* Scrollbar styling for touch displays */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #e0e0e0;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #9E9E9E;
+        border-radius: 3px;
+      }
+
+      /* Pulse animation for active markers */
+      @keyframes pulse-ring {
+        0% { transform: scale(1); opacity: 0.8; }
+        70% { transform: scale(1.5); opacity: 0; }
+        100% { transform: scale(1.5); opacity: 0; }
+      }
+
+      @keyframes pulse-dot {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+
+      .pulse-active::before {
+        content: '';
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        background-color: var(--color-active);
+        animation: pulse-ring 1.8s ease-out infinite;
+        z-index: 0;
+      }
+
+      .pulse-active {
+        animation: pulse-dot 1.8s ease-in-out infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
