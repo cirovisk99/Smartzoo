@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth:*)",
+      "Bash(git config:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\ciroy\\OneDrive\\Documentos\\FIAP\\Smartzoo\\firmware"
+    ]
+  }
+}
