@@ -79,13 +79,21 @@ CREATE TABLE cages (
     location_y  REAL               -- coordenada Y no mapa (0.0–1.0 normalizado)
 );
 
-CREATE TABLE activity_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE cage_zones (
     cage_id     TEXT REFERENCES cages(id),
-    status      TEXT CHECK(status IN ('active', 'inactive')),
-    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    pan_pos     REAL,
-    tilt_pos    REAL
+    zone_key    TEXT NOT NULL,          -- ex: "bottom_left"
+    description TEXT NOT NULL,         -- ex: "próximo às árvores"
+    PRIMARY KEY (cage_id, zone_key)
+);
+
+CREATE TABLE activity_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    cage_id      TEXT REFERENCES cages(id),
+    status       TEXT CHECK(status IN ('active', 'inactive')),
+    zone         TEXT,                  -- grade 3x3: top_left…bottom_right | NULL
+    zone_label   TEXT,                  -- descrição legível, gerada no insert
+    activity_level REAL,
+    timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE snapshots (
@@ -115,9 +123,30 @@ zoo/cage/+/snapshot   → salva JPEG em disco → INSERT em snapshots
 ```
 
 **Comportamento:**
-- Ao receber `zoo/cage/{cage_id}/status`: inserir em `activity_log`; se `cage_id` não existir em `cages`, criar registro mínimo com `animal_name = cage_id`
+- Ao receber `zoo/cage/{cage_id}/status`:
+  1. Buscar descrição da zona em `cage_zones` onde `cage_id` e `zone_key = payload.zone`
+  2. `zone_label` = descrição encontrada, ou `null` se zona não mapeada
+  3. Inserir em `activity_log` com `zone`, `zone_label` e `activity_level`
+  4. Se `cage_id` não existir em `cages`, criar registro mínimo com `animal_name = cage_id`
 - Ao receber `zoo/cage/{cage_id}/snapshot`: decodificar base64, salvar em `./snapshots/{cage_id}_{ts}.jpg`, inserir path em `snapshots`
 - Reconectar automaticamente ao broker em caso de queda
+
+**Exemplo de `cage_zones` para a jaula do leão:**
+```sql
+INSERT INTO cage_zones VALUES
+  ('cage_leao_01', 'top_left',       'no alto à esquerda, perto da rocha'),
+  ('cage_leao_01', 'top_center',     'no alto ao centro, sob a sombra'),
+  ('cage_leao_01', 'top_right',      'no alto à direita, próximo ao bebedouro'),
+  ('cage_leao_01', 'left',           'à esquerda, na área gramada'),
+  ('cage_leao_01', 'center',         'no centro da jaula'),
+  ('cage_leao_01', 'right',          'à direita, próximo ao tronco'),
+  ('cage_leao_01', 'bottom_left',    'no canto esquerdo, próximo às árvores'),
+  ('cage_leao_01', 'bottom_center',  'na parte inferior, ao centro'),
+  ('cage_leao_01', 'bottom_right',   'no canto direito, próximo à cerca');
+```
+
+**Frase gerada pela IA (ex.):** *"O leão está ativo no canto esquerdo, próximo às árvores"*
+— A IA recebe `animal_name` + `zone_label` e monta a frase em linguagem natural.
 
 ---
 
@@ -136,6 +165,8 @@ Retorna status atual de todas as jaulas (última entrada de cada uma).
     "animal_name": "Leão",
     "status": "active",
     "activity_level": 0.85,
+    "zone": "bottom_left",
+    "zone_label": "no canto esquerdo, próximo às árvores",
     "last_update": "2024-01-15T14:32:10Z",
     "location_x": 0.3,
     "location_y": 0.5
