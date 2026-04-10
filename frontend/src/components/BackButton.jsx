@@ -1,32 +1,20 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 
-/**
- * BackButton — navigates to the map (/) or a custom target.
- * Props:
- *   to: destination path (default "/")
- *   label: button label (default "Voltar ao Mapa")
- */
 export default function BackButton({ to = '/', label = 'Voltar ao Mapa' }) {
   const navigate = useNavigate()
 
   return (
     <button
       onClick={() => navigate(to)}
-      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-colors touch-target"
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        color: 'var(--color-primary)',
-        border: '2px solid var(--color-primary)',
-        minHeight: '48px',
-        fontSize: '18px',
-      }}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-colors touch-target zoo-btn-ghost"
+      style={{ minHeight: '48px', fontSize: '16px' }}
       aria-label={label}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="22"
-        height="22"
+        width="20"
+        height="20"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

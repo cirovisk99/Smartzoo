@@ -33,9 +33,7 @@ export default function ChatScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
   const sendMessage = useCallback(async (text) => {
     const trimmed = text.trim()
@@ -57,48 +55,34 @@ export default function ChatScreen() {
     }
   }, [isLoading])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    sendMessage(inputText)
-  }
-
-  const handleSuggestion = (suggestion) => {
-    sendMessage(suggestion)
-  }
-
-  const clearConversation = () => {
-    setMessages([WELCOME_MESSAGE])
-    setError(null)
-    setInputText('')
-  }
+  const handleSubmit = (e) => { e.preventDefault(); sendMessage(inputText) }
+  const handleSuggestion = (s) => sendMessage(s)
+  const clearConversation = () => { setMessages([WELCOME_MESSAGE]); setError(null); setInputText('') }
 
   return (
-    <div
-      className="flex flex-col h-full"
-      style={{ backgroundColor: 'var(--color-bg)' }}
-    >
+    <div className="flex flex-col h-full zoo-bg-texture" style={{ backgroundColor: 'var(--color-bg)' }}>
+
       {/* Header */}
       <header
-        className="flex items-center gap-4 px-6 py-4 shadow-md flex-shrink-0"
-        style={{ backgroundColor: 'var(--color-primary)' }}
+        className="flex items-center gap-4 px-6 py-4 flex-shrink-0"
+        style={{
+          backgroundColor: 'var(--color-header)',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        }}
       >
         <BackButton />
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">Chat com IA</h1>
-          <p className="text-green-200" style={{ fontSize: '15px' }}>Pergunte sobre os animais do zoo</p>
+          <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Pergunte sobre os animais do zoo</p>
         </div>
         <button
           onClick={clearConversation}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white touch-target"
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.15)',
-            border: '2px solid rgba(255,255,255,0.4)',
-            minHeight: '48px',
-            fontSize: '16px',
-          }}
+          className="flex items-center gap-2 px-4 py-2 zoo-btn-ghost touch-target"
+          style={{ minHeight: '48px', fontSize: '15px' }}
           aria-label="Limpar conversa"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
           </svg>
           Limpar
@@ -118,13 +102,12 @@ export default function ChatScreen() {
           <div className="flex items-start gap-3">
             <div
               className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center"
-              style={{ backgroundColor: 'var(--color-primary)' }}
+              style={{ backgroundColor: 'var(--color-orange)' }}
             >
               <span className="text-white text-lg">🦁</span>
             </div>
             <div
-              className="px-4 py-3 rounded-2xl rounded-tl-sm"
-              style={{ backgroundColor: 'var(--color-surface)', border: '1px solid #e0e0e0' }}
+              className="px-4 py-3 rounded-2xl rounded-tl-sm zoo-card"
             >
               <TypingDots />
             </div>
@@ -134,10 +117,10 @@ export default function ChatScreen() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggestion chips — only shown when no messages beyond welcome */}
+      {/* Suggestion chips */}
       {messages.length <= 1 && !isLoading && (
         <div className="px-4 pb-2 flex-shrink-0">
-          <p className="text-gray-500 mb-2" style={{ fontSize: '16px' }}>Sugestões:</p>
+          <p style={{ fontSize: '15px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>Sugestões:</p>
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
               <button
@@ -145,10 +128,10 @@ export default function ChatScreen() {
                 onClick={() => handleSuggestion(s)}
                 className="px-4 py-2 rounded-full font-medium transition-colors touch-target"
                 style={{
-                  backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                  color: 'var(--color-primary)',
-                  border: '1.5px solid var(--color-primary)',
-                  fontSize: '16px',
+                  backgroundColor: 'rgba(92,184,92,0.15)',
+                  color: '#a8d8a0',
+                  border: '1.5px solid rgba(92,184,92,0.4)',
+                  fontSize: '15px',
                   minHeight: '44px',
                 }}
               >
@@ -162,8 +145,8 @@ export default function ChatScreen() {
       {/* Error banner */}
       {error && (
         <div
-          className="px-4 py-2 mx-4 mb-2 rounded-lg text-red-700 flex-shrink-0"
-          style={{ backgroundColor: '#FFEBEE', border: '1px solid #EF9A9A', fontSize: '16px' }}
+          className="px-4 py-2 mx-4 mb-2 rounded-lg flex-shrink-0"
+          style={{ backgroundColor: 'rgba(192,57,43,0.3)', border: '1px solid rgba(192,57,43,0.6)', fontSize: '15px', color: '#ff9999' }}
           role="alert"
         >
           {error}
@@ -174,7 +157,10 @@ export default function ChatScreen() {
       <form
         onSubmit={handleSubmit}
         className="flex gap-3 px-4 py-3 flex-shrink-0"
-        style={{ backgroundColor: 'var(--color-surface)', borderTop: '1px solid #e0e0e0' }}
+        style={{
+          backgroundColor: 'var(--color-header)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+        }}
       >
         <input
           ref={inputRef}
@@ -185,25 +171,25 @@ export default function ChatScreen() {
           disabled={isLoading}
           className="flex-1 px-4 py-3 rounded-xl outline-none"
           style={{
-            border: '2px solid #e0e0e0',
-            fontSize: '18px',
-            backgroundColor: isLoading ? '#f5f5f5' : 'white',
-            color: 'var(--color-text)',
+            border: '2px solid rgba(255,255,255,0.15)',
+            fontSize: '17px',
+            backgroundColor: isLoading ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)',
+            color: '#ffffff',
             minHeight: '52px',
             transition: 'border-color 0.2s',
           }}
-          onFocus={(e) => { e.target.style.borderColor = 'var(--color-primary)' }}
-          onBlur={(e) => { e.target.style.borderColor = '#e0e0e0' }}
+          onFocus={(e) => { e.target.style.borderColor = 'var(--color-lime)' }}
+          onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.15)' }}
           aria-label="Mensagem para o assistente"
         />
         <button
           type="submit"
           disabled={isLoading || !inputText.trim()}
-          className="px-5 py-3 rounded-xl font-semibold text-white transition-colors touch-target flex items-center gap-2"
+          className="px-5 py-3 rounded-xl font-bold text-white transition-colors touch-target flex items-center gap-2"
           style={{
-            backgroundColor: isLoading || !inputText.trim() ? '#a5d6a7' : 'var(--color-primary)',
+            backgroundColor: isLoading || !inputText.trim() ? 'rgba(92,184,92,0.4)' : 'var(--color-lime)',
             minHeight: '52px',
-            fontSize: '18px',
+            fontSize: '17px',
             cursor: isLoading || !inputText.trim() ? 'not-allowed' : 'pointer',
           }}
           aria-label="Enviar mensagem"
@@ -233,12 +219,10 @@ function MessageBubble({ message }) {
       {/* Avatar */}
       <div
         className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center"
-        style={{
-          backgroundColor: isUser ? '#E3F2FD' : 'var(--color-primary)',
-        }}
+        style={{ backgroundColor: isUser ? 'rgba(255,255,255,0.15)' : 'var(--color-orange)' }}
       >
         {isUser ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="#1976D2" viewBox="0 0 24 24">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="rgba(255,255,255,0.8)" viewBox="0 0 24 24">
             <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
           </svg>
         ) : (
@@ -250,20 +234,21 @@ function MessageBubble({ message }) {
       <div
         className={`max-w-xs rounded-2xl px-4 py-3 ${isUser ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}
         style={{
-          backgroundColor: isUser ? 'var(--color-primary)' : 'var(--color-surface)',
-          color: isUser ? 'white' : 'var(--color-text)',
-          border: isUser ? 'none' : '1px solid #e0e0e0',
-          fontSize: '18px',
+          backgroundColor: isUser ? 'var(--color-lime)' : 'var(--color-surface)',
+          color: '#ffffff',
+          border: isUser ? 'none' : '1px solid var(--color-card-border)',
+          fontSize: '17px',
           lineHeight: '1.5',
           maxWidth: '70%',
           wordBreak: 'break-word',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}
       >
         <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{message.text}</p>
         <span
           style={{
-            fontSize: '12px',
-            opacity: 0.7,
+            fontSize: '11px',
+            opacity: 0.65,
             display: 'block',
             marginTop: '4px',
             textAlign: isUser ? 'right' : 'left',
@@ -286,17 +271,11 @@ function TypingDots() {
           style={{
             width: '8px',
             height: '8px',
-            backgroundColor: '#9E9E9E',
+            backgroundColor: 'rgba(255,255,255,0.5)',
             animation: `typing-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
           }}
         />
       ))}
-      <style>{`
-        @keyframes typing-dot {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-6px); opacity: 1; }
-        }
-      `}</style>
     </div>
   )
 }

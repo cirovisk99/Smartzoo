@@ -28,48 +28,45 @@ export default function MapScreen() {
   }, [loadStatus])
 
   return (
-    <div
-      className="flex flex-col h-full"
-      style={{ backgroundColor: 'var(--color-bg)' }}
-    >
+    <div className="flex flex-col h-full zoo-bg-texture" style={{ backgroundColor: 'var(--color-bg)' }}>
+
       {/* Header */}
       <header
-        className="flex items-center justify-between px-6 py-4 shadow-md flex-shrink-0"
-        style={{ backgroundColor: 'var(--color-primary)' }}
+        className="flex items-center justify-between px-4 py-2 flex-shrink-0"
+        style={{
+          backgroundColor: 'var(--color-header)',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          minHeight: '56px',
+        }}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🦁</span>
-          <h1 className="text-2xl font-bold text-white tracking-wide">SmartZoo</h1>
-        </div>
-        <div className="flex gap-3">
+        {/* Logo Zoo SP */}
+        <img
+          src="/logo-principal.svg"
+          alt="Zoo São Paulo"
+          style={{ height: '38px', width: 'auto' }}
+        />
+
+        {/* Nav buttons */}
+        <div className="flex gap-2">
           <button
             onClick={() => navigate('/chat')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white transition-colors touch-target"
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              border: '2px solid rgba(255,255,255,0.4)',
-              minHeight: '48px',
-              fontSize: '18px',
-            }}
+            className="flex items-center gap-2 px-3 py-2 zoo-btn-ghost touch-target"
+            style={{ minHeight: '44px', fontSize: '15px' }}
             aria-label="Chat com IA"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             Chat AI
           </button>
           <button
             onClick={() => navigate('/route')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white transition-colors touch-target"
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              border: '2px solid rgba(255,255,255,0.4)',
-              minHeight: '48px',
-              fontSize: '18px',
-            }}
+            className="flex items-center gap-2 px-3 py-2 zoo-btn-lime touch-target"
+            style={{ minHeight: '44px', fontSize: '15px' }}
             aria-label="Sugestão de Roteiro"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
             Roteiro
@@ -80,11 +77,11 @@ export default function MapScreen() {
       {/* Offline banner */}
       {error && (
         <div
-          className="flex items-center gap-3 px-6 py-3 text-white font-medium flex-shrink-0"
-          style={{ backgroundColor: '#D32F2F', fontSize: '18px' }}
+          className="flex items-center gap-3 px-6 py-3 text-white font-semibold flex-shrink-0"
+          style={{ backgroundColor: '#c0392b', fontSize: '17px' }}
           role="alert"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
           </svg>
           {error} — Tentando reconectar...
@@ -92,29 +89,22 @@ export default function MapScreen() {
       )}
 
       {/* Map area */}
-      <main className="flex-1 relative overflow-hidden p-4">
+      <main className="flex-1 relative overflow-hidden px-3 pb-3">
         <div
-          className="relative w-full h-full rounded-2xl overflow-hidden shadow-inner"
-          style={{ backgroundColor: '#c8e6c9' }}
+          className="relative w-full h-full rounded-2xl overflow-hidden"
+          style={{
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            backgroundColor: '#4a5c2a',
+          }}
         >
-          {/* Map background — placeholder with zoo pattern */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 30%, #81c784 60%, #c8e6c9 100%)',
-            }}
-          >
-            {/* Decorative paths */}
-            <svg className="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 10% 50% Q 30% 20%, 50% 50% T 90% 50%" stroke="#2E7D32" strokeWidth="4" fill="none" />
-              <path d="M 50% 10% Q 70% 30%, 50% 50% T 50% 90%" stroke="#2E7D32" strokeWidth="4" fill="none" />
-              <rect x="5%" y="5%" width="20%" height="15%" rx="8" fill="rgba(46,125,50,0.1)" stroke="#2E7D32" strokeWidth="1" />
-              <rect x="75%" y="5%" width="20%" height="15%" rx="8" fill="rgba(46,125,50,0.1)" stroke="#2E7D32" strokeWidth="1" />
-              <rect x="5%" y="80%" width="20%" height="15%" rx="8" fill="rgba(46,125,50,0.1)" stroke="#2E7D32" strokeWidth="1" />
-              <rect x="75%" y="80%" width="20%" height="15%" rx="8" fill="rgba(46,125,50,0.1)" stroke="#2E7D32" strokeWidth="1" />
-              <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill="rgba(46,125,50,0.15)" fontSize="64" fontFamily="Inter, sans-serif" fontWeight="bold">MAPA DO ZOO</text>
-            </svg>
-          </div>
+          {/* Mapa oficial Zoo SP como fundo */}
+          <img
+            src="/mapa-zoo.jpg"
+            alt="Mapa do Zoo São Paulo"
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: 'contain', objectPosition: 'center' }}
+          />
 
           {/* Cage markers */}
           {cages.map((cage) => (
@@ -128,7 +118,7 @@ export default function MapScreen() {
           {/* Empty state */}
           {cages.length === 0 && !error && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 text-green-800 opacity-60">
+              <div className="flex flex-col items-center gap-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                 </svg>
@@ -141,8 +131,13 @@ export default function MapScreen() {
 
       {/* Footer */}
       <footer
-        className="flex items-center justify-between px-6 py-2 flex-shrink-0"
-        style={{ backgroundColor: 'var(--color-surface)', borderTop: '1px solid #e0e0e0', fontSize: '16px', color: '#757575' }}
+        className="flex items-center justify-between px-4 py-1.5 flex-shrink-0"
+        style={{
+          backgroundColor: 'var(--color-header)',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          fontSize: '13px',
+          color: 'var(--color-text-muted)',
+        }}
       >
         <span>{cages.length} jaulas monitoradas</span>
         {lastUpdate && (
@@ -151,7 +146,7 @@ export default function MapScreen() {
         <div className="flex items-center gap-2">
           <span
             className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: error ? '#D32F2F' : 'var(--color-active)' }}
+            style={{ backgroundColor: error ? '#c0392b' : 'var(--color-lime)' }}
           />
           <span>{error ? 'Offline' : 'Online'}</span>
         </div>
@@ -186,15 +181,15 @@ function CageMarker({ cage, onClick }) {
     >
       {/* Marker circle */}
       <span
-        className={`relative flex items-center justify-center rounded-full shadow-lg ${isActive ? 'pulse-active' : ''}`}
+        className="relative flex items-center justify-center rounded-full"
         style={{
-          width: '36px',
-          height: '36px',
-          backgroundColor: isActive ? 'var(--color-active)' : 'var(--color-inactive)',
-          border: '3px solid white',
+          width: '40px',
+          height: '40px',
+          backgroundColor: isActive ? 'var(--color-lime)' : 'var(--color-inactive)',
+          border: '3px solid rgba(255,255,255,0.9)',
           boxShadow: isActive
-            ? '0 2px 8px rgba(76,175,80,0.5)'
-            : '0 2px 8px rgba(0,0,0,0.2)',
+            ? '0 0 12px rgba(92,184,92,0.7), 0 2px 8px rgba(0,0,0,0.4)'
+            : '0 2px 8px rgba(0,0,0,0.4)',
         }}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 24 24">
@@ -204,18 +199,18 @@ function CageMarker({ cage, onClick }) {
 
       {/* Label */}
       <span
-        className="mt-1 font-semibold text-center leading-tight"
+        className="mt-1 font-bold text-center leading-tight"
         style={{
-          fontSize: '13px',
-          color: 'var(--color-text)',
-          backgroundColor: 'rgba(255,255,255,0.9)',
-          borderRadius: '4px',
-          padding: '1px 4px',
-          maxWidth: '80px',
+          fontSize: '12px',
+          color: '#ffffff',
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          borderRadius: '6px',
+          padding: '2px 6px',
+          maxWidth: '84px',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          backdropFilter: 'blur(2px)',
         }}
       >
         {cage.animal_name}

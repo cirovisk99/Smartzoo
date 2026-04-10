@@ -21,9 +21,9 @@ export default function StatusBadge({ status, size = 'md' }) {
     <span
       className={`inline-flex items-center rounded-full font-semibold ${sizeClasses}`}
       style={{
-        backgroundColor: isActive ? 'rgba(76, 175, 80, 0.15)' : 'rgba(158, 158, 158, 0.15)',
-        color: isActive ? '#2E7D32' : '#616161',
-        border: `1.5px solid ${isActive ? '#4CAF50' : '#9E9E9E'}`,
+        backgroundColor: isActive ? 'rgba(92,184,92,0.2)' : 'rgba(255,255,255,0.1)',
+        color: isActive ? '#a8d8a0' : 'rgba(255,255,255,0.5)',
+        border: `1.5px solid ${isActive ? 'rgba(92,184,92,0.6)' : 'rgba(255,255,255,0.2)'}`,
       }}
     >
       <span
