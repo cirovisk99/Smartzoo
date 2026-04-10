@@ -30,9 +30,9 @@
 // ===========================================================================
 // CONFIGURAÇÃO — ajuste antes de compilar
 // ===========================================================================
-#define WIFI_SSID    "SEU_WIFI_AQUI"
-#define WIFI_PASS    "SUA_SENHA_AQUI"
-#define MQTT_BROKER  "192.168.1.100"   // IP do Raspberry Pi (broker Mosquitto)
+#define WIFI_SSID    "A56 de Ciro"
+#define WIFI_PASS    "Senha123"
+#define MQTT_BROKER  "10.116.32.161"   // IP do Raspberry Pi (broker Mosquitto)
 #define MQTT_PORT    1883
 #define CAGE_ID      "cage01"          // Identificador único desta gaiola
 // ===========================================================================

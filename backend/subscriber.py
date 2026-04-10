@@ -90,11 +90,10 @@ def _handle_status(cage_id: str, payload: dict) -> None:
     )
 
 
-def _handle_snapshot(cage_id: str, payload: dict) -> None:
+def _handle_snapshot(cage_id: str, image_b64: str) -> None:
     """Decodifica base64, salva JPEG e persiste path no banco."""
-    image_b64 = payload.get("image_base64", "")
     if not image_b64:
-        logger.warning("[SNAPSHOT] %s: payload sem image_base64, ignorando.", cage_id)
+        logger.warning("[SNAPSHOT] %s: payload vazio, ignorando.", cage_id)
         return
 
     os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
@@ -147,12 +146,13 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         cage_id = parts[2]
         msg_type = parts[3]
 
-        payload = json.loads(msg.payload.decode("utf-8"))
-
         if msg_type == "status":
+            payload = json.loads(msg.payload.decode("utf-8"))
             _handle_status(cage_id, payload)
         elif msg_type == "snapshot":
-            _handle_snapshot(cage_id, payload)
+            # ESP32 envia base64 puro, sem JSON
+            image_b64 = msg.payload.decode("utf-8").strip()
+            _handle_snapshot(cage_id, image_b64)
         else:
             logger.debug("Tipo de mensagem desconhecido: %s", msg_type)
 

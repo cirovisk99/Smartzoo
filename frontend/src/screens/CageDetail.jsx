@@ -10,7 +10,9 @@ import {
   Legend,
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
-import { fetchCageHistory, fetchCageSnapshot, fetchStatus } from '../api.js'
+import { fetchCageHistory, fetchStatus } from '../api.js'
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 import BackButton from '../components/BackButton.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 
@@ -23,7 +25,7 @@ export default function CageDetail() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [snapshotError, setSnapshotError] = useState(false)
+  const snapshotUrl = `${BASE_URL}/api/cage/${id}/snapshot`
 
   useEffect(() => {
     let cancelled = false
@@ -31,7 +33,6 @@ export default function CageDetail() {
     async function loadAll() {
       setLoading(true)
       setError(null)
-      setSnapshotError(false)
 
       // Load cage info from status list
       const { data: statusList, error: statusErr } = await fetchStatus()
@@ -47,17 +48,11 @@ export default function CageDetail() {
       // Load history
       const { data: hist, error: histErr } = await fetchCageHistory(id)
       if (!cancelled) {
-        if (!histErr && hist) setHistory(hist)
+        if (!histErr && hist) setHistory(hist.history || [])
       }
 
-      // Load snapshot
-      const { data: snap, error: snapErr } = await fetchCageSnapshot(id)
+      // Load snapshot — API returns JPEG directly, use URL as img src
       if (!cancelled) {
-        if (snapErr || !snap) {
-          setSnapshotError(true)
-        } else {
-          setSnapshot(snap)
-        }
         setLoading(false)
       }
     }
@@ -79,7 +74,7 @@ export default function CageDetail() {
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${i}h`)
   const activityData = Array(24).fill(0)
   history.forEach((entry) => {
-    const h = Number(entry.hour)
+    const h = new Date(entry.hour).getHours()
     if (h >= 0 && h < 24) {
       activityData[h] = Math.round((entry.active_ratio || 0) * 100)
     }
@@ -176,25 +171,26 @@ export default function CageDetail() {
             className="flex-1 rounded-2xl overflow-hidden shadow"
             style={{ backgroundColor: 'var(--color-surface)' }}
           >
-            {snapshotError || !snapshot ? (
-              <div
-                className="w-full h-full flex flex-col items-center justify-center gap-3"
-                style={{ minHeight: '200px', color: '#9E9E9E' }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-                </svg>
-                <span style={{ fontSize: '16px' }}>Sem imagem disponível</span>
-              </div>
-            ) : (
-              <img
-                src={`data:image/jpeg;base64,${snapshot.image_base64}`}
-                alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
-                className="w-full h-full object-cover"
-                style={{ minHeight: '200px' }}
-              />
-            )}
+            <img
+              src={snapshotUrl}
+              alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
+              className="w-full h-full object-cover"
+              style={{ minHeight: '200px' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+                e.currentTarget.nextSibling.style.display = 'flex'
+              }}
+            />
+            <div
+              className="w-full h-full flex-col items-center justify-center gap-3"
+              style={{ minHeight: '200px', color: '#9E9E9E', display: 'none' }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+              </svg>
+              <span style={{ fontSize: '16px' }}>Sem imagem disponível</span>
+            </div>
           </div>
 
           {/* Info panel */}
