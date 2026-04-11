@@ -24,7 +24,8 @@ export default function CageDetail() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const snapshotUrl = `${BASE_URL}/api/cage/${id}/snapshot`
+  const [snapshotTs, setSnapshotTs] = useState(Date.now())
+  const snapshotUrl = `${BASE_URL}/api/cage/${id}/snapshot?t=${snapshotTs}`
 
   useEffect(() => {
     let cancelled = false
@@ -52,7 +53,8 @@ export default function CageDetail() {
     }
 
     loadAll()
-    return () => { cancelled = true }
+    const snapshotTimer = setInterval(() => setSnapshotTs(Date.now()), 30000)
+    return () => { cancelled = true; clearInterval(snapshotTimer) }
   }, [id])
 
   if (loading) {
