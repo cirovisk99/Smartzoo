@@ -158,7 +158,7 @@ export default function MapScreen() {
 function CageMarker({ cage, onClick }) {
   const isActive = cage.status === 'active'
   const left = `${(cage.location_x ?? 0.5) * 100}%`
-  const top = `${(cage.location_y ?? 0.5) * 100}%`
+  const top  = `${(cage.location_y ?? 0.5) * 100}%`
 
   return (
     <button
@@ -185,16 +185,21 @@ function CageMarker({ cage, onClick }) {
         style={{
           width: '40px',
           height: '40px',
-          backgroundColor: isActive ? 'var(--color-lime)' : 'var(--color-inactive)',
-          border: '3px solid rgba(255,255,255,0.9)',
+          backgroundColor: isActive ? 'var(--color-lime)' : '#5a5a72',
+          border: `3px solid ${isActive ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)'}`,
           boxShadow: isActive
             ? '0 0 12px rgba(92,184,92,0.7), 0 2px 8px rgba(0,0,0,0.4)'
             : '0 2px 8px rgba(0,0,0,0.4)',
+          opacity: isActive ? 1 : 0.75,
         }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 24 24">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-        </svg>
+        {isActive ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 24 24">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+          </svg>
+        ) : (
+          <span style={{ fontSize: '16px', lineHeight: 1 }}>💤</span>
+        )}
       </span>
 
       {/* Label */}
@@ -202,7 +207,7 @@ function CageMarker({ cage, onClick }) {
         className="mt-1 font-bold text-center leading-tight"
         style={{
           fontSize: '12px',
-          color: '#ffffff',
+          color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
           backgroundColor: 'rgba(0,0,0,0.65)',
           borderRadius: '6px',
           padding: '2px 6px',
