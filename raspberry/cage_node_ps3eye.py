@@ -99,8 +99,10 @@ class CageNode:
         self.last_zone         = "unknown"
         self.last_person_count = 0
 
-        self.start_time       = time.time()
-        self.last_status_pub  = 0.0
+        self.start_time        = time.time()
+        self.last_status_pub   = 0.0
+        self.last_snapshot_pub = 0.0
+        self.snapshot_interval = 30  # segundos
 
         # MQTT
         self.mqtt_client = mqtt.Client(client_id=f"ps3eye_{cage_id}", clean_session=True)
@@ -142,7 +144,12 @@ class CageNode:
                 value = int(payload.get("value", self.status_interval))
                 if 1 <= value <= 3600:
                     self.status_interval = value
-                    logger.info("[MQTT] Intervalo atualizado: %d s", value)
+                    logger.info("[MQTT] Intervalo de status atualizado: %d s", value)
+            elif action == "set_snapshot_interval":
+                value = int(payload.get("value", self.snapshot_interval))
+                if 1 <= value <= 3600:
+                    self.snapshot_interval = value
+                    logger.info("[MQTT] Intervalo de snapshot atualizado: %d s", value)
         except Exception as exc:
             logger.error("[MQTT] Erro ao processar cmd: %s", exc)
 
@@ -270,11 +277,15 @@ class CageNode:
                     flush=True,
                 )
 
-                # Publicação periódica de status
+                # Publicação periódica de status e snapshot
                 now = time.time()
                 if now - self.last_status_pub >= self.status_interval:
                     self.last_status_pub = now
                     self._publish_status()
+
+                if now - self.last_snapshot_pub >= self.snapshot_interval:
+                    self.last_snapshot_pub = now
+                    self._publish_snapshot()
 
                 time.sleep(0.1)  # ~10 fps
 
