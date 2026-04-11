@@ -211,7 +211,7 @@ export default function CageDetail() {
               <div className="zoo-card p-4 flex flex-col gap-2 flex-1">
                 <h2 className="text-base font-bold" style={{ color: 'var(--color-orange)' }}>Informações</h2>
                 {cageInfo.species && <InfoRow label="Espécie" value={cageInfo.species} />}
-                <InfoRow label="Visitantes detectados" value={cageInfo.animal_count ?? '0'} />
+                <InfoRow label="Presença detectada" value={cageInfo.animal_count > 0 ? 'Sim' : 'Não'} />
                 {(cageInfo.zone_label || (cageInfo.zone && cageInfo.zone !== 'unknown')) && (
                   <InfoRow label="Zona" value={cageInfo.zone_label || cageInfo.zone} />
                 )}
