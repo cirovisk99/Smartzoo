@@ -9,7 +9,7 @@ import React from 'react'
 export default function StatusBadge({ status, size = 'md' }) {
   const isActive = status === 'active'
 
-  const label = isActive ? 'Ativo' : 'Inativo'
+  const label = isActive ? 'Visível' : 'Não visível'
 
   const sizeClasses = size === 'sm'
     ? 'text-sm px-2 py-0.5 gap-1'
