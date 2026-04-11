@@ -21,7 +21,7 @@ CAGES = [
     ("cage03", "Girafa",      "Giraffa camelopardalis",   0.63, 0.38),
     ("cage04", "Hipopótamo",  "Hippopotamus amphibius",   0.52, 0.72),
     ("cage05", "Zebra",       "Equus quagga",             0.21, 0.45),
-    ("cage06", "Gorila",      "Gorilla gorilla",          0.17, 0.28),
+    ("cage06", "Gorila",      "Gorilla gorilla",          0.60, 0.55),
     ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.83, 0.58),
 ]
 
