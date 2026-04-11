@@ -100,7 +100,7 @@ def _handle_snapshot(cage_id: str, image_b64: str) -> None:
 
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"{cage_id}_{ts}.jpg"
-    image_path = os.path.join(SNAPSHOTS_DIR, filename)
+    image_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, filename))
 
     try:
         image_bytes = base64.b64decode(image_b64)

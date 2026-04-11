@@ -81,6 +81,11 @@ def get_cage_snapshot(cage_id: str):
             raise HTTPException(status_code=404, detail="Nenhum snapshot disponível para esta jaula.")
 
         image_path = snap["image_path"]
+        # Resolve path relativo em relação ao diretório deste arquivo (backend/)
+        if not os.path.isabs(image_path):
+            image_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", image_path)
+            )
         if not os.path.isfile(image_path):
             raise HTTPException(
                 status_code=404,

@@ -290,22 +290,28 @@ def main():
     snap_conn = sqlite3.connect(DB_PATH)
     snap_conn.execute("PRAGMA journal_mode=WAL;")
     for cage_id, _, _, _, _, url in ANIMALS:
+        # Apaga cache para forçar novo download se arquivo estiver corrompido
+        cache_path = os.path.join(backend_dir, f"_demo_img_{cage_id}.jpg")
         b64 = download_image_b64(url, cage_id)
         images[cage_id] = b64
         if b64:
-            # Salva JPEG em disco e registra no banco diretamente
-            img_bytes = base64.b64decode(b64)
-            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-            fname = f"{cage_id}_{ts}.jpg"
-            fpath = os.path.join(snapshots_dir, fname)
-            with open(fpath, "wb") as f:
-                f.write(img_bytes)
-            snap_conn.execute(
-                "INSERT INTO snapshots (cage_id, image_path) VALUES (?, ?)",
-                (cage_id, fpath),
-            )
-            logger.info("  Snapshot salvo direto: %s", fpath)
-    snap_conn.commit()
+            try:
+                img_bytes = base64.b64decode(b64)
+                ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+                fname = f"{cage_id}_{ts}.jpg"
+                fpath = os.path.join(snapshots_dir, fname)
+                with open(fpath, "wb") as f:
+                    f.write(img_bytes)
+                snap_conn.execute(
+                    "INSERT INTO snapshots (cage_id, image_path) VALUES (?, ?)",
+                    (cage_id, fpath),
+                )
+                snap_conn.commit()
+                logger.info("  Snapshot salvo: %s (%d bytes)", fpath, len(img_bytes))
+            except Exception as exc:
+                logger.error("  ERRO ao salvar snapshot %s: %s", cage_id, exc)
+        else:
+            logger.warning("  Sem imagem para %s — pulando snapshot", cage_id)
     snap_conn.close()
 
     # --- MQTT ---
