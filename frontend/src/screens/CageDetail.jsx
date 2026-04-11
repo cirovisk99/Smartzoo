@@ -103,6 +103,7 @@ export default function CageDetail() {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    layout: { padding: { bottom: 8 } },
     plugins: {
       legend: { display: false },
       title: { display: false },
@@ -112,14 +113,14 @@ export default function CageDetail() {
     },
     scales: {
       x: {
-        ticks: { font: { size: 12, family: 'Inter' }, color: 'rgba(255,255,255,0.6)', maxRotation: 0 },
+        ticks: { font: { size: 10, family: 'Inter' }, color: 'rgba(255,255,255,0.6)', maxRotation: 0 },
         grid: { display: false },
         border: { color: 'rgba(255,255,255,0.1)' },
       },
       y: {
         min: 0,
         max: 100,
-        ticks: { font: { size: 12, family: 'Inter' }, color: 'rgba(255,255,255,0.6)', callback: (v) => `${v}%` },
+        ticks: { font: { size: 10, family: 'Inter' }, color: 'rgba(255,255,255,0.6)', callback: (v) => `${v}%` },
         grid: { color: 'rgba(255,255,255,0.07)' },
         border: { color: 'rgba(255,255,255,0.1)' },
       },
@@ -189,26 +190,8 @@ export default function CageDetail() {
             </div>
           </div>
 
-          {/* Cards direita: Info + Melhor horário empilhados */}
+          {/* Cards direita: Melhor horário em cima, Info abaixo */}
           <div className="flex flex-col gap-3 flex-1 min-w-0">
-
-            {cageInfo && (
-              <div className="zoo-card p-4 flex flex-col gap-2 flex-1">
-                <h2 className="text-base font-bold" style={{ color: 'var(--color-orange)' }}>Informações</h2>
-                <InfoRow label="Animais" value={cageInfo.animal_count ?? '—'} />
-                {(cageInfo.zone_label || (cageInfo.zone && cageInfo.zone !== 'unknown')) && (
-                  <InfoRow label="Zona" value={cageInfo.zone_label || cageInfo.zone} />
-                )}
-                <InfoRow label="Atividade" value={<ActivityBar value={cageInfo.activity_level || 0} />} />
-                {cageInfo.last_update && (
-                  <InfoRow label="Atualização" value={
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                      {new Date(cageInfo.last_update + 'Z').toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                    </span>
-                  } />
-                )}
-              </div>
-            )}
 
             {bestHourLabel && (
               <div className="zoo-card p-4 flex flex-col justify-center gap-1 flex-shrink-0" style={{ borderTop: '3px solid var(--color-lime)' }}>
@@ -223,15 +206,35 @@ export default function CageDetail() {
                 </p>
               </div>
             )}
+
+            {cageInfo && (
+              <div className="zoo-card p-4 flex flex-col gap-2 flex-1">
+                <h2 className="text-base font-bold" style={{ color: 'var(--color-orange)' }}>Informações</h2>
+                {cageInfo.species && <InfoRow label="Espécie" value={cageInfo.species} />}
+                <InfoRow label="Visitantes detectados" value={cageInfo.animal_count ?? '0'} />
+                {(cageInfo.zone_label || (cageInfo.zone && cageInfo.zone !== 'unknown')) && (
+                  <InfoRow label="Zona" value={cageInfo.zone_label || cageInfo.zone} />
+                )}
+                <InfoRow label="Atividade" value={<ActivityBar value={cageInfo.activity_level || 0} />} />
+                <InfoRow label="Status" value={<StatusBadge status={cageInfo.status} size="sm" />} />
+                {cageInfo.last_update && (
+                  <InfoRow label="Atualização" value={
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                      {new Date(cageInfo.last_update + 'Z').toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                    </span>
+                  } />
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Activity chart */}
-        <div className="zoo-card p-5 flex flex-col gap-3" style={{ minHeight: '220px' }}>
+        <div className="zoo-card p-5 flex flex-col gap-3" style={{ minHeight: '240px' }}>
           <h2 className="text-xl font-bold" style={{ color: 'var(--color-orange)' }}>
             Atividade nas últimas 24 horas
           </h2>
-          <div style={{ flex: 1, minHeight: '160px', position: 'relative' }}>
+          <div style={{ flex: 1, minHeight: '180px', position: 'relative' }}>
             {history.length === 0 ? (
               <div className="flex items-center justify-center h-full" style={{ color: 'var(--color-text-muted)', fontSize: '17px' }}>
                 Sem dados de histórico disponíveis
