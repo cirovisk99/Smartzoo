@@ -100,7 +100,7 @@ export default function MapScreen() {
         >
           {/* Mapa oficial Zoo SP como fundo */}
           <img
-            src="/mapa-zoo.jpg"
+            src="/mapa-zoo.png"
             alt="Mapa do Zoo São Paulo"
             className="absolute inset-0 w-full h-full"
             style={{ objectFit: 'contain', objectPosition: 'center' }}
