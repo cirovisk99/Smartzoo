@@ -559,6 +559,105 @@ Marque cada item conforme for confirmando:
 
 ---
 
+## PARTE 5 — PS3 Eye como Segunda Jaula (Opcional)
+
+> Conecte uma câmera PS3 Eye ao Raspberry Pi para simular um segundo ESP32-S3 Sense,
+> monitorando outra jaula sem precisar de hardware adicional.
+> Spec completa: `docs/SPEC-02-ps3eye-cage-node.md`
+
+### 5.1 Conectar a PS3 Eye
+
+Plugue a câmera USB no Raspberry Pi. O driver `gspca_ov534` já vem no kernel do Bookworm — nenhuma instalação extra.
+
+Confirme que foi reconhecida:
+```bash
+ls /dev/video*
+# Deve aparecer /dev/video0 (ou /dev/video1 se já havia outra câmera)
+```
+
+---
+
+### 5.2 Instalar dependências Python
+
+```bash
+cd ~/SmartZoo/raspberry
+python3 -m venv .venv
+source .venv/bin/activate
+pip install opencv-python-headless paho-mqtt numpy scipy
+```
+
+---
+
+### 5.3 Rodar o nó da segunda jaula
+
+```bash
+python3 cage_node_ps3eye.py --cage-id cage02 --camera 0
+```
+
+Logs esperados:
+```
+[CAM] PS3Eye aberta (/dev/video0) OK
+[MQTT] Conectado ao broker localhost:1883
+inactive | count: 0 | zone: -  | activity: 0.004
+```
+
+O backend aceita automaticamente — nenhuma alteração necessária.
+
+---
+
+### 5.4 Verificar no MQTT Explorer
+
+Expanda `zoo → cage → cage02`: você verá `status` chegando a cada 10 segundos.
+
+---
+
+### 5.5 Cadastrar cage02 no banco (para o frontend exibir)
+
+```bash
+cd ~/SmartZoo/backend
+source venv/bin/activate
+python3 -c "
+from database import init_db, upsert_cage_minimal
+init_db()
+upsert_cage_minimal('cage02')
+print('cage02 cadastrada')
+"
+```
+
+Para personalizar nome, espécie e zonas, siga o mesmo processo do passo 1.5 usando `cage_id='cage02'`.
+
+---
+
+### 5.6 Rodar como serviço (permanente)
+
+```bash
+sudo nano /etc/systemd/system/smartzoo-cage02.service
+```
+
+```ini
+[Unit]
+Description=SmartZoo PS3Eye Cage Node (cage02)
+After=mosquitto.service
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/SmartZoo/raspberry
+ExecStart=/home/pi/SmartZoo/raspberry/.venv/bin/python3 cage_node_ps3eye.py --cage-id cage02
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable smartzoo-cage02
+sudo systemctl start smartzoo-cage02
+```
+
+---
+
 ## Erros Comuns e Soluções
 
 ### ESP32 não conecta ao WiFi

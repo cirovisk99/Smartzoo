@@ -25,16 +25,28 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "esp_camera.h"
+#include "img_converters.h"
 #include "mbedtls/base64.h"
 
 // ===========================================================================
 // CONFIGURAÇÃO — ajuste antes de compilar
 // ===========================================================================
-#define WIFI_SSID    "A56 de Ciro"
-#define WIFI_PASS    "Senha123"
-#define MQTT_BROKER  "10.116.32.161"   // IP do Raspberry Pi (broker Mosquitto)
-#define MQTT_PORT    1883
-#define CAGE_ID      "cage01"          // Identificador único desta gaiola
+#define MQTT_PORT  1883
+#define CAGE_ID    "cage01"   // Identificador único desta gaiola
+
+struct NetworkConfig {
+    const char* ssid;
+    const char* password;
+    const char* broker;   // IP do Raspberry Pi nessa rede
+};
+
+static const NetworkConfig NETWORKS[] = {
+    { "Ciro_Yamauchi-2.4GHz", "Flok1alequinho", "192.168.0.100" },  // casa
+    { "A56 de Ciro",          "Senha123",        "10.116.32.100" },  // hotspot FIAP
+};
+static const int NETWORK_COUNT = sizeof(NETWORKS) / sizeof(NETWORKS[0]);
+
+static const char* active_broker = nullptr;  // definido em connectWiFi()
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -116,6 +128,7 @@ static bool     confirmed_active = false;
 static float        last_bg_diff    = 0.0f;
 static int          last_count      = 0;
 static const char*  last_zone       = nullptr;
+static float        last_bbox[4]    = {0.0f, 0.0f, 1.0f, 1.0f}; // [x,y,w,h] norm. 0–1
 
 // ---------------------------------------------------------------------------
 // Estado global — MQTT / temporização
@@ -181,18 +194,25 @@ int countAnimals(const uint8_t* frame, const char** primary_zone) {
     int largest_cells = 0;
     int largest_sum_r = GRID_ROWS / 2;
     int largest_sum_c = GRID_COLS / 2;
+    int largest_min_r = 0, largest_max_r = GRID_ROWS - 1;
+    int largest_min_c = 0, largest_max_c = GRID_COLS - 1;
 
     for (int r = 0; r < GRID_ROWS; r++) {
         for (int c = 0; c < GRID_COLS; c++) {
             if (!grid[r][c] || grid_visited[r][c]) continue;
 
             int top = 0, cells = 0, sum_r = 0, sum_c = 0;
+            int bmin_r = GRID_ROWS, bmax_r = -1, bmin_c = GRID_COLS, bmax_c = -1;
             gstack[top++] = { (int8_t)r, (int8_t)c };
             grid_visited[r][c] = true;
 
             while (top > 0) {
                 GPoint p = gstack[--top];
                 cells++; sum_r += p.r; sum_c += p.c;
+                if (p.r < bmin_r) bmin_r = p.r;
+                if (p.r > bmax_r) bmax_r = p.r;
+                if (p.c < bmin_c) bmin_c = p.c;
+                if (p.c > bmax_c) bmax_c = p.c;
                 for (int d = 0; d < 4; d++) {
                     int nr = p.r + dr[d], nc = p.c + dc[d];
                     if (nr < 0 || nr >= GRID_ROWS || nc < 0 || nc >= GRID_COLS) continue;
@@ -209,16 +229,23 @@ int countAnimals(const uint8_t* frame, const char** primary_zone) {
                     largest_cells = cells;
                     largest_sum_r = sum_r / cells;
                     largest_sum_c = sum_c / cells;
+                    largest_min_r = bmin_r; largest_max_r = bmax_r;
+                    largest_min_c = bmin_c; largest_max_c = bmax_c;
                 }
             }
         }
     }
 
-    // 3. Converte centróide 8×8 → zona 3×3
+    // 3. Converte centróide 8×8 → zona 3×3 e calcula bbox normalizada
     if (animal_count > 0) {
         int zr = (largest_sum_r * ZONE_ROWS) / GRID_ROWS;
         int zc = (largest_sum_c * ZONE_COLS) / GRID_COLS;
         *primary_zone = ZONE_NAMES[constrain(zr, 0, ZONE_ROWS-1)][constrain(zc, 0, ZONE_COLS-1)];
+        // bbox: célula da grade 8×8 → coordenadas normalizadas 0.0–1.0
+        last_bbox[0] = largest_min_c / (float)GRID_COLS;
+        last_bbox[1] = largest_min_r / (float)GRID_ROWS;
+        last_bbox[2] = (largest_max_c - largest_min_c + 1) / (float)GRID_COLS;
+        last_bbox[3] = (largest_max_r - largest_min_r + 1) / (float)GRID_ROWS;
     }
 
     return min(animal_count, MAX_ANIMALS);
@@ -270,15 +297,49 @@ bool initCamera() {
 // ===========================================================================
 
 /**
- * Captura um frame VGA em JPEG, codifica em base64 e:
- *   1. Imprime no Serial (comportamento original do Módulo 2)
- *   2. Publica no tópico zoo/cage/{CAGE_ID}/snapshot via MQTT (Módulo 3)
+ * Desenha um retângulo vermelho (RGB565) diretamente no buffer do frame.
+ * bbox = [x, y, w, h] normalizados 0.0–1.0 (originados da grade 8×8 de detecção).
+ * thickness = espessura da borda em pixels.
+ */
+static void drawBboxRGB565(uint8_t* buf, int img_w, int img_h,
+                            float bx, float by, float bw, float bh,
+                            int thickness) {
+    int x0 = constrain((int)(bx * img_w),              0, img_w - 1);
+    int y0 = constrain((int)(by * img_h),              0, img_h - 1);
+    int x1 = constrain((int)((bx + bw) * img_w) - 1,  0, img_w - 1);
+    int y1 = constrain((int)((by + bh) * img_h) - 1,  0, img_h - 1);
+
+    // Vermelho em RGB565 big-endian: 0xF800 → bytes 0xF8, 0x00
+    const uint8_t R_HI = 0xF8, R_LO = 0x00;
+
+    auto setPixel = [&](int x, int y) {
+        if (x < 0 || x >= img_w || y < 0 || y >= img_h) return;
+        int idx = (y * img_w + x) * 2;
+        buf[idx]     = R_HI;
+        buf[idx + 1] = R_LO;
+    };
+
+    for (int t = 0; t < thickness; t++) {
+        for (int x = x0; x <= x1; x++) {
+            setPixel(x, y0 + t);  // borda superior
+            setPixel(x, y1 - t);  // borda inferior
+        }
+        for (int y = y0; y <= y1; y++) {
+            setPixel(x0 + t, y);  // borda esquerda
+            setPixel(x1 - t, y);  // borda direita
+        }
+    }
+}
+
+/**
+ * Captura um frame VGA em RGB565, desenha a bbox do animal detectado em vermelho,
+ * converte para JPEG via frame2jpg() e publica em base64 via MQTT.
  *
- * A câmera é desinicializada + reinicializada porque JPEG VGA precisa de
- * configuração diferente do modo grayscale 96×96.
+ * Capturar em RGB565 (raw) permite modificar os pixels antes de comprimir —
+ * impossível após o encoding JPEG hardware.
  */
 void captureSnapshot() {
-    Serial.println("\n[SNAPSHOT] Capturando imagem de referência (VGA JPEG)...");
+    Serial.println("\n[SNAPSHOT] Capturando imagem VGA com bbox...");
 
     esp_camera_deinit();
     delay(150);
@@ -294,9 +355,9 @@ void captureSnapshot() {
     cfg.pin_sccb_sda = SIOD_GPIO_NUM;  cfg.pin_sccb_scl = SIOC_GPIO_NUM;
     cfg.pin_pwdn     = PWDN_GPIO_NUM;  cfg.pin_reset = RESET_GPIO_NUM;
     cfg.xclk_freq_hz = 20000000;
-    cfg.pixel_format = PIXFORMAT_JPEG;
+    cfg.pixel_format = PIXFORMAT_RGB565;  // raw: permite desenhar antes de comprimir
     cfg.frame_size   = FRAMESIZE_VGA;
-    cfg.jpeg_quality = 10;
+    cfg.jpeg_quality = 12;
     cfg.fb_count     = 1;
 
     if (esp_camera_init(&cfg) != ESP_OK) {
@@ -324,31 +385,44 @@ void captureSnapshot() {
         return;
     }
 
+    // Desenha caixa vermelha se animal detectado
+    if (confirmed_active && last_count > 0) {
+        drawBboxRGB565(fb->buf, fb->width, fb->height,
+                       last_bbox[0], last_bbox[1], last_bbox[2], last_bbox[3],
+                       /*thickness=*/4);
+        Serial.printf("[SNAPSHOT] bbox desenhada: x=%.2f y=%.2f w=%.2f h=%.2f\n",
+                      last_bbox[0], last_bbox[1], last_bbox[2], last_bbox[3]);
+    }
+
+    // Converte RGB565 → JPEG (frame2jpg aloca o buffer internamente)
+    uint8_t* jpeg_buf = nullptr;
+    size_t   jpeg_len = 0;
+    if (!frame2jpg(fb, /*quality=*/85, &jpeg_buf, &jpeg_len)) {
+        Serial.println("[SNAPSHOT] ERRO: frame2jpg falhou");
+        esp_camera_fb_return(fb);
+        esp_camera_deinit();
+        delay(100);
+        initCamera();
+        return;
+    }
+    esp_camera_fb_return(fb);
+
     // Codifica em base64
-    size_t b64_size = ((fb->len + 2) / 3) * 4 + 4;
+    size_t b64_size = ((jpeg_len + 2) / 3) * 4 + 4;
     unsigned char* b64 = (unsigned char*)ps_malloc(b64_size);
     if (!b64) b64 = (unsigned char*)malloc(b64_size);
 
     if (b64) {
         size_t olen = 0;
-        mbedtls_base64_encode(b64, b64_size, &olen, fb->buf, fb->len);
+        mbedtls_base64_encode(b64, b64_size, &olen, jpeg_buf, jpeg_len);
 
-        // 1. Serial (legado Módulo 2)
-        Serial.printf("[SNAPSHOT] %u bytes JPEG → %u chars base64\n", fb->len, (unsigned)olen);
-        Serial.println(">>>SNAPSHOT_START<<<");
-        Serial.write(b64, olen);
-        Serial.println("\n>>>SNAPSHOT_END<<<");
-        Serial.println("[SNAPSHOT] Cole em: https://base64.guru/converter/decode/image\n");
+        Serial.printf("[SNAPSHOT] %u bytes JPEG → %u chars base64\n",
+                      (unsigned)jpeg_len, (unsigned)olen);
 
-        // 2. MQTT — publica no tópico snapshot
-        //    PubSubClient tem limite padrão de 256 bytes por mensagem.
-        //    Uma imagem VGA pode ter centenas de KB: usamos publish em chunks
-        //    via begin/write/end para contornar o limite.
         if (mqtt_client.connected()) {
-            Serial.printf("[SNAPSHOT] Publicando %u bytes no MQTT...\n", (unsigned)olen);
+            Serial.printf("[SNAPSHOT] Publicando no MQTT (%u bytes)...\n", (unsigned)olen);
             bool ok = mqtt_client.beginPublish(topic_snapshot, olen, false);
             if (ok) {
-                // Envia em blocos de 512 bytes para não sobrecarregar o buffer
                 const size_t CHUNK = 512;
                 size_t sent = 0;
                 while (sent < olen) {
@@ -362,13 +436,13 @@ void captureSnapshot() {
                 Serial.println("[SNAPSHOT] ERRO: beginPublish falhou");
             }
         } else {
-            Serial.println("[SNAPSHOT] MQTT desconectado — snapshot apenas no serial");
+            Serial.println("[SNAPSHOT] MQTT desconectado — snapshot ignorado");
         }
 
         free(b64);
     }
 
-    esp_camera_fb_return(fb);
+    free(jpeg_buf);  // alocado por frame2jpg
     esp_camera_deinit();
     delay(150);
     initCamera();
@@ -379,25 +453,35 @@ void captureSnapshot() {
 // ===========================================================================
 
 /**
- * Conecta ao WiFi com retry bloqueante.
- * Exibe progresso no Serial. Reinicia o ESP após 30 tentativas (~15 s).
+ * Tenta conectar em cada rede da lista NETWORKS (casa → hotspot).
+ * Define active_broker com o IP do broker da rede que conectar.
+ * Reinicia o ESP se nenhuma rede estiver disponível.
  */
 void connectWiFi() {
-    Serial.printf("[WiFi] Conectando a '%s'", WIFI_SSID);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-        if (++attempts >= 30) {
-            Serial.println("\n[WiFi] Timeout — reiniciando...");
-            ESP.restart();
+    for (int n = 0; n < NETWORK_COUNT; n++) {
+        Serial.printf("[WiFi] Tentando '%s'", NETWORKS[n].ssid);
+        WiFi.begin(NETWORKS[n].ssid, NETWORKS[n].password);
+
+        for (int i = 0; i < 20; i++) {
+            delay(500);
+            Serial.print(".");
+            if (WiFi.status() == WL_CONNECTED) {
+                active_broker = NETWORKS[n].broker;
+                Serial.printf("\n[WiFi] Conectado! IP: %s | broker: %s\n",
+                              WiFi.localIP().toString().c_str(), active_broker);
+                return;
+            }
         }
+
+        Serial.println("\n[WiFi] Sem resposta, tentando próxima rede...");
+        WiFi.disconnect();
+        delay(500);
     }
 
-    Serial.printf("\n[WiFi] Conectado! IP: %s\n", WiFi.localIP().toString().c_str());
+    Serial.println("[WiFi] Nenhuma rede disponível — reiniciando...");
+    ESP.restart();
 }
 
 // ===========================================================================
@@ -463,7 +547,7 @@ bool ensureMqttConnected() {
     if (mqtt_client.connected()) return true;
 
     Serial.printf("[MQTT] Conectando a %s:%d (id=%s)...\n",
-                  MQTT_BROKER, MQTT_PORT, mqtt_client_id);
+                  active_broker, MQTT_PORT, mqtt_client_id);
 
     if (mqtt_client.connect(mqtt_client_id)) {
         Serial.println("[MQTT] Conectado!");
@@ -557,7 +641,7 @@ void setup() {
     connectWiFi();
 
     // -- MQTT --
-    mqtt_client.setServer(MQTT_BROKER, MQTT_PORT);
+    mqtt_client.setServer(active_broker, MQTT_PORT);
     mqtt_client.setCallback(mqttCallback);
     // Aumenta buffer para acomodar payloads maiores (snapshot chunked via begin/write)
     mqtt_client.setBufferSize(512);
