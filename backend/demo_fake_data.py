@@ -57,27 +57,27 @@ ANIMALS = [
     (
         "cage03", "Girafa", "Giraffa camelopardalis",
         0.63, 0.38,
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Giraffe_Mikumi_National_Park.jpg/640px-Giraffe_Mikumi_National_Park.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Giraffe_Mikumi_National_Park.jpg/320px-Giraffe_Mikumi_National_Park.jpg",
     ),
     (
         "cage04", "Hipopótamo", "Hippopotamus amphibius",
         0.52, 0.72,
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Hippo_in_Tanzania_3921_Nevit.jpg/640px-Hippo_in_Tanzania_3921_Nevit.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Hippo_in_Tanzania_3921_Nevit.jpg/320px-Hippo_in_Tanzania_3921_Nevit.jpg",
     ),
     (
         "cage05", "Zebra", "Equus quagga",
         0.21, 0.45,
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Plains_Zebra_Equus_quagga.jpg/640px-Plains_Zebra_Equus_quagga.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Plains_Zebra_Equus_quagga.jpg/320px-Plains_Zebra_Equus_quagga.jpg",
     ),
     (
         "cage06", "Gorila", "Gorilla gorilla",
         0.60, 0.55,
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg/640px-Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg/320px-Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg",
     ),
     (
         "cage07", "Flamingo", "Phoenicopterus roseus",
         0.83, 0.58,
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/FLAMINGO_4.jpg/640px-FLAMINGO_4.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/FLAMINGO_4.jpg/320px-FLAMINGO_4.jpg",
     ),
 ]
 
@@ -181,26 +181,30 @@ def seed_history(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 def download_image_b64(url: str, cage_id: str) -> str | None:
-    """Baixa imagem da URL e retorna como base64 JPEG string."""
-    # Cache local para não baixar toda vez no loop
+    """Baixa imagem da URL e retorna como base64 JPEG string. Retenta em 429."""
     cache_path = os.path.join(os.path.dirname(DB_PATH), f"_demo_img_{cage_id}.jpg")
-    if os.path.exists(cache_path):
+    if os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
         with open(cache_path, "rb") as f:
             return base64.b64encode(f.read()).decode("ascii")
 
     logger.info("  Baixando imagem: %s", url)
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "SmartZooDemo/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = resp.read()
-        # Salva cache
-        with open(cache_path, "wb") as f:
-            f.write(data)
-        logger.info("  Imagem salva (%d bytes)", len(data))
-        return base64.b64encode(data).decode("ascii")
-    except Exception as exc:
-        logger.warning("  Falha ao baixar imagem %s: %s", url, exc)
-        return None
+    for attempt in range(5):
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; SmartZooDemo/1.0)"
+            })
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = resp.read()
+            with open(cache_path, "wb") as f:
+                f.write(data)
+            logger.info("  Imagem salva (%d bytes)", len(data))
+            return base64.b64encode(data).decode("ascii")
+        except Exception as exc:
+            wait = (attempt + 1) * 5
+            logger.warning("  Tentativa %d falhou: %s — aguardando %ds...", attempt + 1, exc, wait)
+            time.sleep(wait)
+    logger.error("  Desistindo de %s após 5 tentativas", cage_id)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -290,9 +294,9 @@ def main():
     snap_conn = sqlite3.connect(DB_PATH)
     snap_conn.execute("PRAGMA journal_mode=WAL;")
     for cage_id, _, _, _, _, url in ANIMALS:
-        # Apaga cache para forçar novo download se arquivo estiver corrompido
         cache_path = os.path.join(backend_dir, f"_demo_img_{cage_id}.jpg")
         b64 = download_image_b64(url, cage_id)
+        time.sleep(3)  # evita rate limit do Wikimedia
         images[cage_id] = b64
         if b64:
             try:
