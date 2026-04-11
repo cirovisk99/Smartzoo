@@ -16,8 +16,13 @@ DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "sma
 
 CAGES = [
     # id, animal_name, species, location_x, location_y
-    ("cage01", "Leão",      "Panthera leo",           0.25, 0.55),
-    ("cage02", "Elefante",  "Loxodonta africana",     0.70, 0.30),
+    ("cage01", "Leão",        "Panthera leo",             0.25, 0.55),
+    ("cage02", "Elefante",    "Loxodonta africana",       0.70, 0.30),
+    ("cage03", "Girafa",      "Giraffa camelopardalis",   0.45, 0.20),
+    ("cage04", "Hipopótamo",  "Hippopotamus amphibius",   0.55, 0.65),
+    ("cage05", "Zebra",       "Equus quagga",             0.30, 0.35),
+    ("cage06", "Gorila",      "Gorilla gorilla",          0.15, 0.30),
+    ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.80, 0.65),
 ]
 
 def seed():
