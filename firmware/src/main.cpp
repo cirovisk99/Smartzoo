@@ -251,7 +251,7 @@ int countAnimals(const uint8_t* frame, const char** primary_zone) {
     return min(animal_count, MAX_ANIMALS);
 }
 
-void updateBackground(const uint8_t* frame) {
+void updateBackground(const uint8_t* frame, int alpha = BG_ALPHA) {
     if (!bg_ready) {
         memcpy(background, frame, FRAME_PIXELS);
         bg_ready = true;
@@ -259,7 +259,7 @@ void updateBackground(const uint8_t* frame) {
     }
     for (int i = 0; i < FRAME_PIXELS; i++) {
         int diff = (int)frame[i] - (int)background[i];
-        background[i] = (uint8_t)((int)background[i] + diff / BG_ALPHA);
+        background[i] = (uint8_t)((int)background[i] + diff / alpha);
     }
 }
 
@@ -690,12 +690,16 @@ void loop() {
     if (inactive_streak >= FRAMES_TO_DEACTIVATE) confirmed_active = false;
 
     // Contagem + zona + atualização do background
+    // Background sempre atualiza: rápido quando inativo, lento quando ativo.
+    // Isso evita que mudanças de iluminação congelem o modelo e causem
+    // detecção de movimento em todo o frame.
     const char* zone  = nullptr;
     int         count = 0;
     if (confirmed_active) {
         count = countAnimals(fb->buf, &zone);
+        updateBackground(fb->buf, BG_ALPHA * 4);  // adaptação lenta durante atividade
     } else {
-        updateBackground(fb->buf);
+        updateBackground(fb->buf);  // adaptação normal quando sem movimento
     }
 
     esp_camera_fb_return(fb);
