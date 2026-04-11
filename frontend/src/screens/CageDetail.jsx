@@ -69,13 +69,17 @@ export default function CageDetail() {
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${i}h`)
   const activityData = Array(24).fill(0)
   history.forEach((entry) => {
-    // Interpreta como UTC e converte para horário de Brasília (UTC-3)
     const h = new Date(entry.hour + 'Z').toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false })
     const hNum = parseInt(h, 10)
     if (hNum >= 0 && hNum < 24) {
       activityData[hNum] = Math.round((entry.active_ratio || 0) * 100)
     }
   })
+
+  // Melhor horário para visita: hora com maior atividade no histórico
+  const bestHourIdx = activityData.reduce((best, v, i) => v > activityData[best] ? i : best, 0)
+  const bestHourValue = activityData[bestHourIdx]
+  const bestHourLabel = bestHourValue > 0 ? `${bestHourIdx}h – ${bestHourIdx + 1}h` : null
 
   const chartData = {
     labels: hourLabels,
@@ -159,70 +163,72 @@ export default function CageDetail() {
 
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
 
-        {/* Top row: snapshot + info */}
-        <div className="flex flex-col gap-4" style={{ minHeight: '220px' }}>
-
-          {/* Snapshot */}
-          <div className="w-full rounded-2xl overflow-hidden" style={{ border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', maxHeight: '320px' }}>
-            <img
-              src={snapshotUrl}
-              alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
-              className="w-full h-full object-cover"
-              style={{ minHeight: '200px' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-                e.currentTarget.nextSibling.style.display = 'flex'
-              }}
-            />
-            <div
-              className="w-full h-full flex-col items-center justify-center gap-3"
-              style={{ minHeight: '200px', color: 'var(--color-text-muted)', display: 'none', backgroundColor: 'var(--color-surface)' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-              </svg>
-              <span style={{ fontSize: '16px' }}>Sem imagem disponível</span>
-            </div>
-          </div>
-
-          {/* Info panel */}
+        {/* Snapshot */}
+        <div className="w-full rounded-2xl overflow-hidden flex-shrink-0" style={{ height: '260px', border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+          <img
+            src={snapshotUrl}
+            alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
+            className="w-full h-full"
+            style={{ objectFit: 'cover', objectPosition: 'center top' }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+              e.currentTarget.nextSibling.style.display = 'flex'
+            }}
+          />
           <div
-            className="zoo-card p-5 flex flex-col gap-3"
-            style={{ width: '100%' }}
+            className="w-full h-full flex-col items-center justify-center gap-3"
+            style={{ color: 'var(--color-text-muted)', display: 'none', backgroundColor: 'var(--color-surface)' }}
           >
-            <h2
-              className="text-xl font-bold"
-              style={{ color: 'var(--color-orange)' }}
-            >
-              Informações
-            </h2>
-
-            {cageInfo ? (
-              <>
-                <InfoRow label="Status" value={<StatusBadge status={cageInfo.status} size="sm" />} />
-                <InfoRow label="Animais" value={cageInfo.animal_count ?? '—'} />
-                <InfoRow label="Zona" value={cageInfo.zone_label || cageInfo.zone || '—'} />
-                <InfoRow label="Nível de atividade" value={<ActivityBar value={cageInfo.activity_level || 0} />} />
-                {cageInfo.last_update && (
-                  <InfoRow label="Última atualização" value={
-                    <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                      {new Date(cageInfo.last_update + 'Z').toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                    </span>
-                  } />
-                )}
-              </>
-            ) : (
-              <p style={{ fontSize: '16px', color: 'var(--color-text-muted)' }}>Informações indisponíveis</p>
-            )}
+            <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+            </svg>
+            <span style={{ fontSize: '16px' }}>Sem imagem disponível</span>
           </div>
         </div>
 
+        {/* Info grid */}
+        {cageInfo && (
+          <div className="zoo-card p-5 flex flex-col gap-4">
+            <h2 className="text-xl font-bold" style={{ color: 'var(--color-orange)' }}>Informações</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <InfoRow label="Status" value={<StatusBadge status={cageInfo.status} size="sm" />} />
+              <InfoRow label="Animais" value={cageInfo.animal_count ?? '—'} />
+              {(cageInfo.zone_label || (cageInfo.zone && cageInfo.zone !== 'unknown')) && (
+                <InfoRow label="Zona" value={cageInfo.zone_label || cageInfo.zone} />
+              )}
+              {cageInfo.last_update && (
+                <InfoRow label="Última atualização" value={
+                  <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
+                    {new Date(cageInfo.last_update + 'Z').toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                  </span>
+                } />
+              )}
+            </div>
+            <InfoRow label="Nível de atividade" value={<ActivityBar value={cageInfo.activity_level || 0} />} />
+          </div>
+        )}
+
+        {/* Melhor horário para visita */}
+        {bestHourLabel && (
+          <div className="zoo-card p-5 flex items-center gap-4" style={{ borderLeft: '4px solid var(--color-lime)' }}>
+            <div style={{ fontSize: '32px' }}>🕐</div>
+            <div>
+              <p style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)' }}>
+                Melhor horário para visitar
+              </p>
+              <p style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-lime)' }}>
+                {bestHourLabel}
+              </p>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                {bestHourValue}% de atividade média
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Activity chart */}
-        <div
-          className="zoo-card p-5 flex flex-col gap-3"
-          style={{ flex: '1', minHeight: '200px' }}
-        >
+        <div className="zoo-card p-5 flex flex-col gap-3" style={{ minHeight: '220px' }}>
           <h2 className="text-xl font-bold" style={{ color: 'var(--color-orange)' }}>
             Atividade nas últimas 24 horas
           </h2>
