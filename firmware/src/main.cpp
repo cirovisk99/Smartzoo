@@ -80,7 +80,7 @@ constexpr int FRAME_H      = 96;
 constexpr int FRAME_PIXELS = FRAME_W * FRAME_H;
 
 // Confiança mínima para considerar pessoa detectada
-constexpr float PERSON_THRESHOLD = 0.60f;
+constexpr float PERSON_THRESHOLD = 0.45f;
 
 // Histerese: evita flickering
 constexpr int FRAMES_TO_ACTIVATE   = 2;
@@ -104,8 +104,10 @@ static int   inactive_streak  = 0;
 static bool  confirmed_active = false;
 static float last_person_score = 0.0f;
 
-static unsigned long status_interval_ms = 10000UL;
-static unsigned long last_status_pub_ms = 0;
+static unsigned long status_interval_ms   = 10000UL;
+static unsigned long last_status_pub_ms   = 0;
+static unsigned long snapshot_interval_ms = 30000UL; // snapshot automático a cada 30s
+static unsigned long last_snapshot_pub_ms = 0;
 
 static char topic_status[64];
 static char topic_cmd[64];
@@ -333,7 +335,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
                 long v = atol(val_ptr + 1);
                 if (v >= 1 && v <= 3600) {
                     status_interval_ms = (unsigned long)v * 1000UL;
-                    Serial.printf("[MQTT] Intervalo: %lu s\n", (unsigned long)v);
+                    Serial.printf("[MQTT] Intervalo status: %lu s\n", (unsigned long)v);
+                }
+            }
+        }
+    } else if (strstr(msg, "\"set_snapshot_interval\"")) {
+        const char* val_ptr = strstr(msg, "\"value\"");
+        if (val_ptr) {
+            val_ptr = strchr(val_ptr, ':');
+            if (val_ptr) {
+                long v = atol(val_ptr + 1);
+                if (v >= 5 && v <= 3600) {
+                    snapshot_interval_ms = (unsigned long)v * 1000UL;
+                    Serial.printf("[MQTT] Intervalo snapshot: %lu s\n", (unsigned long)v);
                 }
             }
         }
@@ -458,11 +472,15 @@ void loop() {
         person_score,
         PERSON_THRESHOLD);
 
-    // Publicação periódica
+    // Publicação periódica de status e snapshot
     unsigned long now = millis();
     if (now - last_status_pub_ms >= status_interval_ms) {
         last_status_pub_ms = now;
         publishStatus();
+    }
+    if (now - last_snapshot_pub_ms >= snapshot_interval_ms) {
+        last_snapshot_pub_ms = now;
+        captureSnapshot();
     }
 
     delay(200);
