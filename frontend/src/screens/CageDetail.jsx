@@ -164,8 +164,8 @@ export default function CageDetail() {
 
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
 
-        {/* Snapshot 16:9 */}
-        <div className="w-full rounded-2xl overflow-hidden flex-shrink-0" style={{ aspectRatio: '16/9', border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', backgroundColor: 'var(--color-surface)' }}>
+        {/* Snapshot */}
+        <div className="w-full rounded-2xl overflow-hidden flex-shrink-0" style={{ height: '200px', border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', backgroundColor: 'var(--color-surface)' }}>
           <img
             src={snapshotUrl}
             alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
