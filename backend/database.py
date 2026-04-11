@@ -7,7 +7,7 @@ import sqlite3
 import os
 import logging
 from typing import Optional
-from config import DB_PATH, SNAPSHOTS_DIR
+from config import DB_PATH, SNAPSHOTS_DIR, CAGE_HEARTBEAT_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -150,18 +150,24 @@ def get_latest_status_all():
     """
     Retorna a última entrada de activity_log para cada jaula,
     enriquecida com dados de cages.
+    Jaulas sem mensagem há mais de CAGE_HEARTBEAT_TIMEOUT segundos
+    são automaticamente reportadas como 'inactive'.
     """
     conn = get_connection()
     try:
         rows = conn.execute(
-            """
+            f"""
             SELECT
                 a.cage_id,
                 c.animal_name,
                 c.species,
                 c.location_x,
                 c.location_y,
-                a.status,
+                CASE
+                    WHEN (julianday('now') - julianday(a.timestamp)) * 86400 > {CAGE_HEARTBEAT_TIMEOUT}
+                    THEN 'inactive'
+                    ELSE a.status
+                END AS status,
                 a.activity_level,
                 a.animal_count,
                 a.zone,

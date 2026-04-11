@@ -29,3 +29,6 @@ OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 # Cache de respostas da IA (TTL em segundos)
 AI_CACHE_TTL: int = int(os.getenv("AI_CACHE_TTL", "300"))  # 5 minutos
+
+# Timeout de heartbeat: jaulas sem mensagem por mais que isso são marcadas como inactive
+CAGE_HEARTBEAT_TIMEOUT: int = int(os.getenv("CAGE_HEARTBEAT_TIMEOUT", "60"))  # segundos
