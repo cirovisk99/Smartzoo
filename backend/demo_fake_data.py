@@ -96,8 +96,21 @@ ZONES = ["top_left","top_center","top_right","left","center","right","bottom_lef
 # Seed banco
 # ---------------------------------------------------------------------------
 
+ZONE_LABELS = [
+    ("top_left",       "Canto esquerdo ao fundo"),
+    ("top_center",     "Ao fundo, área central"),
+    ("top_right",      "Canto direito ao fundo"),
+    ("left",           "Lateral esquerda"),
+    ("center",         "Centro do recinto"),
+    ("right",          "Lateral direita"),
+    ("bottom_left",    "Canto esquerdo na frente"),
+    ("bottom_center",  "Área central na frente"),
+    ("bottom_right",   "Canto direito na frente"),
+]
+
+
 def seed_cages(conn: sqlite3.Connection) -> None:
-    """Insere / atualiza metadados das jaulas fake."""
+    """Insere / atualiza metadados das jaulas fake + labels de zona."""
     for cage_id, name, species, lx, ly, _ in ANIMALS:
         conn.execute(
             """
@@ -111,6 +124,16 @@ def seed_cages(conn: sqlite3.Connection) -> None:
             """,
             (cage_id, name, species, lx, ly),
         )
+        for zone_key, description in ZONE_LABELS:
+            conn.execute(
+                """
+                INSERT INTO cage_zones (cage_id, zone_key, description)
+                VALUES (?, ?, ?)
+                ON CONFLICT(cage_id, zone_key) DO UPDATE SET
+                    description = excluded.description
+                """,
+                (cage_id, zone_key, description),
+            )
         logger.info("  Cage seeded: %s (%s)", cage_id, name)
     conn.commit()
 
@@ -133,6 +156,7 @@ def seed_history(conn: sqlite3.Connection) -> None:
             activity = min(100, max(0, base_pct + random.randint(-15, 15))) / 100.0
             status = "active" if activity > 0.15 else "inactive"
             zone = random.choice(ZONES) if status == "active" else None
+            zone_label = dict(ZONE_LABELS).get(zone) if zone else None
             conn.execute(
                 """
                 INSERT INTO activity_log
@@ -140,7 +164,7 @@ def seed_history(conn: sqlite3.Connection) -> None:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    cage_id, status, zone, zone,
+                    cage_id, status, zone, zone_label,
                     round(activity, 3),
                     1 if status == "active" else 0,
                     ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -253,11 +277,31 @@ def main():
         seed_history(conn)
     conn.close()
 
-    # --- Download imagens ---
+    # --- Download imagens + salva direto no banco ---
     logger.info("=== Download de imagens ===")
     images: dict[str, str | None] = {}
+    snapshots_dir = os.environ.get("SNAPSHOTS_DIR", os.path.join(os.path.dirname(DB_PATH), "snapshots"))
+    os.makedirs(snapshots_dir, exist_ok=True)
+    snap_conn = sqlite3.connect(DB_PATH)
+    snap_conn.execute("PRAGMA journal_mode=WAL;")
     for cage_id, _, _, _, _, url in ANIMALS:
-        images[cage_id] = download_image_b64(url, cage_id)
+        b64 = download_image_b64(url, cage_id)
+        images[cage_id] = b64
+        if b64:
+            # Salva JPEG em disco e registra no banco diretamente
+            img_bytes = base64.b64decode(b64)
+            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            fname = f"{cage_id}_{ts}.jpg"
+            fpath = os.path.join(snapshots_dir, fname)
+            with open(fpath, "wb") as f:
+                f.write(img_bytes)
+            snap_conn.execute(
+                "INSERT INTO snapshots (cage_id, image_path) VALUES (?, ?)",
+                (cage_id, fpath),
+            )
+            logger.info("  Snapshot salvo direto: %s", fpath)
+    snap_conn.commit()
+    snap_conn.close()
 
     # --- MQTT ---
     logger.info("=== Conectando MQTT %s:%d ===", args.broker, args.port)

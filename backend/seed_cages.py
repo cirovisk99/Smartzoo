@@ -11,7 +11,6 @@ import sqlite3
 import os
 import sys
 
-# Localiza o banco pelo mesmo caminho que config.py usa
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "smartzoo.db"))
 
 CAGES = [
@@ -25,10 +24,26 @@ CAGES = [
     ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.83, 0.58),
 ]
 
+# Descrições de zona em português — aplicadas a todas as jaulas
+ZONE_LABELS = [
+    ("top_left",       "Canto esquerdo ao fundo"),
+    ("top_center",     "Ao fundo, área central"),
+    ("top_right",      "Canto direito ao fundo"),
+    ("left",           "Lateral esquerda"),
+    ("center",         "Centro do recinto"),
+    ("right",          "Lateral direita"),
+    ("bottom_left",    "Canto esquerdo na frente"),
+    ("bottom_center",  "Área central na frente"),
+    ("bottom_right",   "Canto direito na frente"),
+]
+
+
 def seed():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL;")
     cur = conn.cursor()
+
+    # Jaulas
     for cage_id, name, species, lx, ly in CAGES:
         cur.execute(
             """
@@ -42,15 +57,30 @@ def seed():
             """,
             (cage_id, name, species, lx, ly),
         )
-        print(f"  {cage_id}: {name} ({species})  pos=({lx}, {ly})")
+        print(f"  {cage_id}: {name}  pos=({lx}, {ly})")
+
+    # Zonas
+    for cage_id, _, _, _, _ in CAGES:
+        for zone_key, description in ZONE_LABELS:
+            cur.execute(
+                """
+                INSERT INTO cage_zones (cage_id, zone_key, description)
+                VALUES (?, ?, ?)
+                ON CONFLICT(cage_id, zone_key) DO UPDATE SET
+                    description = excluded.description
+                """,
+                (cage_id, zone_key, description),
+            )
+    print(f"  Zonas configuradas para {len(CAGES)} jaulas.")
+
     conn.commit()
     conn.close()
     print("Seed concluído.")
 
+
 if __name__ == "__main__":
     if not os.path.exists(DB_PATH):
         print(f"Banco não encontrado em: {DB_PATH}", file=sys.stderr)
-        print("Execute o backend ao menos uma vez para criar o banco.", file=sys.stderr)
         sys.exit(1)
     print(f"Atualizando banco: {DB_PATH}")
     seed()
