@@ -18,10 +18,10 @@ CAGES = [
     # id, animal_name, species, location_x, location_y
     ("cage01", "Leão",        "Panthera leo",             0.27, 0.60),
     ("cage02", "Elefante",    "Loxodonta africana",       0.68, 0.22),
-    ("cage03", "Girafa",      "Giraffa camelopardalis",   0.38, 0.15),
+    ("cage03", "Girafa",      "Giraffa camelopardalis",   0.38, 0.22),
     ("cage04", "Hipopótamo",  "Hippopotamus amphibius",   0.52, 0.72),
     ("cage05", "Zebra",       "Equus quagga",             0.21, 0.45),
-    ("cage06", "Gorila",      "Gorilla gorilla",          0.12, 0.28),
+    ("cage06", "Gorila",      "Gorilla gorilla",          0.17, 0.28),
     ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.83, 0.58),
 ]
 
