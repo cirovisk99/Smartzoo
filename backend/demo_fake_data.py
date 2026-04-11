@@ -56,27 +56,27 @@ DB_PATH = os.environ.get(
 ANIMALS = [
     (
         "cage03", "Girafa", "Giraffa camelopardalis",
-        0.45, 0.20,
+        0.37, 0.08,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Giraffe_Mikumi_National_Park.jpg/640px-Giraffe_Mikumi_National_Park.jpg",
     ),
     (
         "cage04", "Hipopótamo", "Hippopotamus amphibius",
-        0.55, 0.65,
+        0.52, 0.72,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Hippo_in_Tanzania_3921_Nevit.jpg/640px-Hippo_in_Tanzania_3921_Nevit.jpg",
     ),
     (
         "cage05", "Zebra", "Equus quagga",
-        0.30, 0.35,
+        0.21, 0.45,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Plains_Zebra_Equus_quagga.jpg/640px-Plains_Zebra_Equus_quagga.jpg",
     ),
     (
         "cage06", "Gorila", "Gorilla gorilla",
-        0.15, 0.30,
+        0.08, 0.27,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg/640px-Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg",
     ),
     (
         "cage07", "Flamingo", "Phoenicopterus roseus",
-        0.80, 0.65,
+        0.83, 0.58,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/FLAMINGO_4.jpg/640px-FLAMINGO_4.jpg",
     ),
 ]
