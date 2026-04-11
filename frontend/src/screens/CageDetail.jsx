@@ -69,9 +69,11 @@ export default function CageDetail() {
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${i}h`)
   const activityData = Array(24).fill(0)
   history.forEach((entry) => {
-    const h = new Date(entry.hour).getHours()
-    if (h >= 0 && h < 24) {
-      activityData[h] = Math.round((entry.active_ratio || 0) * 100)
+    // Interpreta como UTC e converte para horário de Brasília (UTC-3)
+    const h = new Date(entry.hour + 'Z').toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false })
+    const hNum = parseInt(h, 10)
+    if (hNum >= 0 && hNum < 24) {
+      activityData[hNum] = Math.round((entry.active_ratio || 0) * 100)
     }
   })
 
@@ -158,10 +160,10 @@ export default function CageDetail() {
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
 
         {/* Top row: snapshot + info */}
-        <div className="flex gap-4" style={{ minHeight: '220px' }}>
+        <div className="flex flex-col gap-4" style={{ minHeight: '220px' }}>
 
           {/* Snapshot */}
-          <div className="flex-1 rounded-2xl overflow-hidden" style={{ border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+          <div className="w-full rounded-2xl overflow-hidden" style={{ border: '1px solid var(--color-card-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', maxHeight: '320px' }}>
             <img
               src={snapshotUrl}
               alt={`Snapshot de ${cageInfo?.animal_name || 'jaula'}`}
@@ -186,8 +188,8 @@ export default function CageDetail() {
 
           {/* Info panel */}
           <div
-            className="zoo-card p-5 flex flex-col gap-3 flex-shrink-0"
-            style={{ minWidth: '200px', maxWidth: '260px' }}
+            className="zoo-card p-5 flex flex-col gap-3"
+            style={{ width: '100%' }}
           >
             <h2
               className="text-xl font-bold"
@@ -205,7 +207,7 @@ export default function CageDetail() {
                 {cageInfo.last_update && (
                   <InfoRow label="Última atualização" value={
                     <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                      {new Date(cageInfo.last_update).toLocaleTimeString('pt-BR')}
+                      {new Date(cageInfo.last_update + 'Z').toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                     </span>
                   } />
                 )}
