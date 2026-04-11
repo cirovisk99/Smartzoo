@@ -190,6 +190,8 @@ def publish_round(client: mqtt.Client, images: dict[str, str | None]) -> None:
         profile = ACTIVITY_PROFILES.get(cage_id, [50] * 24)
         hour = datetime.now().hour
         base_pct = profile[hour] / 100.0
+        # Demo: garante mínimo de 40% para sempre ter animais visíveis
+        base_pct = max(base_pct, 0.40)
         activity = min(1.0, max(0.0, base_pct + random.uniform(-0.1, 0.1)))
         status = "active" if activity > 0.15 else "inactive"
         zone = random.choice(ZONES) if status == "active" else "unknown"
