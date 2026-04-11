@@ -56,7 +56,7 @@ DB_PATH = os.environ.get(
 ANIMALS = [
     (
         "cage03", "Girafa", "Giraffa camelopardalis",
-        0.38, 0.15,
+        0.63, 0.38,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Giraffe_Mikumi_National_Park.jpg/640px-Giraffe_Mikumi_National_Park.jpg",
     ),
     (
@@ -71,7 +71,7 @@ ANIMALS = [
     ),
     (
         "cage06", "Gorila", "Gorilla gorilla",
-        0.12, 0.28,
+        0.60, 0.55,
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg/640px-Western_Lowland_Gorilla_at_Auckland_Zoo_-_27April2010.jpg",
     ),
     (
@@ -280,8 +280,13 @@ def main():
     # --- Download imagens + salva direto no banco ---
     logger.info("=== Download de imagens ===")
     images: dict[str, str | None] = {}
-    snapshots_dir = os.environ.get("SNAPSHOTS_DIR", os.path.join(os.path.dirname(DB_PATH), "snapshots"))
+    # Usa mesmo diretório do banco para garantir que o backend encontra os arquivos
+    backend_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    snapshots_dir = os.path.abspath(
+        os.environ.get("SNAPSHOTS_DIR", os.path.join(backend_dir, "snapshots"))
+    )
     os.makedirs(snapshots_dir, exist_ok=True)
+    logger.info("  Snapshots dir: %s", snapshots_dir)
     snap_conn = sqlite3.connect(DB_PATH)
     snap_conn.execute("PRAGMA journal_mode=WAL;")
     for cage_id, _, _, _, _, url in ANIMALS:
