@@ -43,6 +43,13 @@ def seed():
     conn.execute("PRAGMA journal_mode=WAL;")
     cur = conn.cursor()
 
+    # Migração: adiciona zoo_area se não existir
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(cages)").fetchall()]
+    if "zoo_area" not in cols:
+        cur.execute("ALTER TABLE cages ADD COLUMN zoo_area TEXT")
+        conn.commit()
+        print("  Coluna zoo_area adicionada.")
+
     # Jaulas
     for cage_id, name, species, lx, ly, zoo_area in CAGES:
         cur.execute(
