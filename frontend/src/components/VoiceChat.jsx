@@ -53,10 +53,17 @@ export default function VoiceChat() {
     const clean = stripMarkdown(text)
     const utterance = new SpeechSynthesisUtterance(clean)
     utterance.lang = 'pt-BR'
-    utterance.rate = 0.95
+    utterance.rate = 1.1    // mais animado
+    utterance.pitch = 1.5   // mais agudo, infantil
+    utterance.volume = 1.0
+
+    // Prefere voz feminina pt-BR (soa mais como personagem animado)
     const voices = window.speechSynthesis.getVoices()
-    const ptVoice = voices.find(v => v.lang.startsWith('pt'))
-    if (ptVoice) utterance.voice = ptVoice
+    const ptFemale = voices.find(v => v.lang.startsWith('pt') && /female|feminino|woman/i.test(v.name))
+    const ptAny    = voices.find(v => v.lang.startsWith('pt'))
+    if (ptFemale) utterance.voice = ptFemale
+    else if (ptAny) utterance.voice = ptAny
+
     utterance.onend = () => setStatus(STATUS.IDLE)
     utterance.onerror = () => setStatus(STATUS.IDLE)
     window.speechSynthesis.speak(utterance)
