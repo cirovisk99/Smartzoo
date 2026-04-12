@@ -1,5 +1,5 @@
 """
-routers/tts.py — Endpoint de síntese de voz (TTS) via gTTS.
+routers/tts.py — Endpoint de síntese de voz (TTS) via edge-tts.
 
 POST /api/tts  → recebe texto, retorna MP3
 """
@@ -17,21 +17,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["tts"])
 
+VOICE = "pt-BR-ThalitaNeural"
+
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1)
 
 
 @router.post("/tts")
-def synthesize(body: TTSRequest):
-    """Converte texto em fala (MP3) usando gTTS."""
+async def synthesize(body: TTSRequest):
+    """Converte texto em fala (MP3) usando edge-tts (Microsoft Neural TTS)."""
     try:
-        from gtts import gTTS  # type: ignore
+        import edge_tts  # type: ignore
 
-        tts = gTTS(text=body.text, lang='pt', slow=False)
+        communicate = edge_tts.Communicate(body.text, VOICE)
         buf = io.BytesIO()
-        tts.write_to_fp(buf)
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buf.write(chunk["data"])
         buf.seek(0)
+
+        if buf.getbuffer().nbytes == 0:
+            raise RuntimeError("edge-tts não retornou áudio.")
 
         return StreamingResponse(
             buf,
