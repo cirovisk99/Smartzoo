@@ -97,7 +97,10 @@ def _call_gemini(system_prompt: str, user_message: str) -> str:
         from google import genai  # type: ignore
         from google.genai import types  # type: ignore
 
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(
+            api_key=GEMINI_API_KEY,
+            http_options={"api_version": "v1"},
+        )
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             config=types.GenerateContentConfig(system_instruction=system_prompt),
