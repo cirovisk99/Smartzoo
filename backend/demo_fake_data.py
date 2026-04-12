@@ -108,20 +108,36 @@ ZONE_LABELS = [
 ]
 
 
+ZOO_AREAS = {
+    "cage03": "Savana Africana",
+    "cage04": "Lagoa dos Hipopótamos",
+    "cage05": "Savana Africana",
+    "cage06": "Área dos Primatas",
+    "cage07": "Parque das Aves",
+}
+
+
 def seed_cages(conn: sqlite3.Connection) -> None:
     """Insere / atualiza metadados das jaulas fake + labels de zona."""
+    # Migração: adiciona zoo_area se não existir
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(cages)").fetchall()]
+    if "zoo_area" not in cols:
+        conn.execute("ALTER TABLE cages ADD COLUMN zoo_area TEXT")
+        conn.commit()
+
     for cage_id, name, species, lx, ly, _ in ANIMALS:
         conn.execute(
             """
-            INSERT INTO cages (id, animal_name, species, location_x, location_y)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO cages (id, animal_name, species, location_x, location_y, zoo_area)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 animal_name = excluded.animal_name,
                 species     = excluded.species,
                 location_x  = excluded.location_x,
-                location_y  = excluded.location_y
+                location_y  = excluded.location_y,
+                zoo_area    = excluded.zoo_area
             """,
-            (cage_id, name, species, lx, ly),
+            (cage_id, name, species, lx, ly, ZOO_AREAS.get(cage_id)),
         )
         for zone_key, description in ZONE_LABELS:
             conn.execute(
@@ -141,7 +157,17 @@ def seed_history(conn: sqlite3.Connection) -> None:
     """
     Insere entradas de activity_log simulando as últimas 24 horas.
     Uma entrada a cada 10 minutos por jaula (144 entradas × 5 jaulas).
+    Apaga entradas anteriores das jaulas fake para evitar duplicação.
     """
+    fake_ids = [c[0] for c in ANIMALS]
+    placeholders = ",".join("?" * len(fake_ids))
+    deleted = conn.execute(
+        f"DELETE FROM activity_log WHERE cage_id IN ({placeholders})", fake_ids
+    ).rowcount
+    conn.commit()
+    if deleted:
+        logger.info("  Histórico antigo removido: %d entradas", deleted)
+
     now = datetime.now(tz=timezone.utc)
     inserted = 0
 
