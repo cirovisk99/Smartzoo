@@ -160,7 +160,7 @@ export default function VoiceChat() {
         <div
           style={{
             position: 'fixed',
-            right: '16px',
+            left: '16px',
             top: '290px',
             width: '180px',
             backgroundColor: 'rgba(18, 32, 8, 0.96)',
@@ -265,11 +265,11 @@ export default function VoiceChat() {
         </div>
       )}
 
-      {/* Card do mascote — canto superior direito */}
+      {/* Card do mascote — canto superior esquerdo */}
       <div
         style={{
           position: 'fixed',
-          right: '16px',
+          left: '16px',
           top: '64px',
           width: '172px',
           backgroundColor: 'rgba(18, 32, 8, 0.92)',
