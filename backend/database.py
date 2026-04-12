@@ -172,6 +172,7 @@ def get_latest_status_all():
                 c.species,
                 c.location_x,
                 c.location_y,
+                c.zoo_area,
                 CASE
                     WHEN (julianday('now') - julianday(a.timestamp)) * 86400 > {CAGE_HEARTBEAT_TIMEOUT}
                     THEN 'inactive'
