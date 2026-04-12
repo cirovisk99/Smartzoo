@@ -94,14 +94,15 @@ def _build_context(zoo_context: list) -> str:
 
 def _call_gemini(system_prompt: str, user_message: str) -> str:
     try:
-        import google.generativeai as genai  # type: ignore
+        from google import genai  # type: ignore
+        from google.genai import types  # type: ignore
 
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            model_name=GEMINI_MODEL,
-            system_instruction=system_prompt,
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            config=types.GenerateContentConfig(system_instruction=system_prompt),
+            contents=user_message,
         )
-        response = model.generate_content(user_message)
         return response.text.strip()
     except Exception as exc:
         logger.error("Erro ao chamar Gemini API: %s", exc)
