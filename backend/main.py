@@ -19,6 +19,7 @@ from routers.cages import router as cages_router
 from routers.chat import router as chat_router
 from routers.route import router as route_router
 from routers.transcribe import router as transcribe_router
+from routers.tts import router as tts_router
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -54,6 +55,7 @@ app.include_router(cages_router)
 app.include_router(chat_router)
 app.include_router(route_router)
 app.include_router(transcribe_router)
+app.include_router(tts_router)
 
 
 # ---------------------------------------------------------------------------

@@ -39,8 +39,13 @@ export default function VoiceChat() {
   const maxTimerRef      = useRef(null)
   const chunksRef        = useRef([])
 
+  const currentAudioRef = useRef(null)
+
   const stopSpeaking = useCallback(() => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel()
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause()
+      currentAudioRef.current = null
+    }
   }, [])
 
   const cleanup = useCallback(() => {
@@ -69,22 +74,25 @@ export default function VoiceChat() {
     setErrorMsg('')
   }, [stopSpeaking, cleanup])
 
-  const speakResponse = useCallback((text) => {
-    if (!window.speechSynthesis) { setStatus(STATUS.IDLE); return }
+  const speakResponse = useCallback(async (text) => {
     const clean = stripMarkdown(text)
-    const utterance = new SpeechSynthesisUtterance(clean)
-    utterance.lang = 'pt-BR'
-    utterance.rate = 1.1
-    utterance.pitch = 1.5
-    utterance.volume = 1.0
-    const voices = window.speechSynthesis.getVoices()
-    const ptFemale = voices.find(v => v.lang.startsWith('pt') && /female|feminino|woman/i.test(v.name))
-    const ptAny    = voices.find(v => v.lang.startsWith('pt'))
-    if (ptFemale) utterance.voice = ptFemale
-    else if (ptAny) utterance.voice = ptAny
-    utterance.onend = () => setStatus(STATUS.IDLE)
-    utterance.onerror = () => setStatus(STATUS.IDLE)
-    window.speechSynthesis.speak(utterance)
+    try {
+      const res = await fetch(`${BASE_URL}/api/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: clean }),
+      })
+      if (!res.ok) throw new Error('TTS falhou')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      currentAudioRef.current = audio
+      audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; setStatus(STATUS.IDLE) }
+      audio.onerror = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; setStatus(STATUS.IDLE) }
+      audio.play()
+    } catch {
+      setStatus(STATUS.IDLE)
+    }
   }, [])
 
   const sendToChat = useCallback(async (text) => {

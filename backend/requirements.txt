@@ -7,3 +7,4 @@ pydantic>=2.7.0
 python-dotenv>=1.0.0
 vosk>=0.3.45
 python-multipart>=0.0.9
+gTTS>=2.5.0
