@@ -1,0 +1,17 @@
+[Unit]
+Description=SmartZoo Demo Fake Data Publisher
+After=network.target mosquitto.service smartzoo-api.service
+Requires=mosquitto.service smartzoo-api.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Smartzoo/backend
+ExecStart=/home/pi/Smartzoo/backend/venv/bin/python3 /home/pi/Smartzoo/backend/demo_fake_data.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
