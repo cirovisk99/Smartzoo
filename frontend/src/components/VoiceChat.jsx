@@ -155,14 +155,14 @@ export default function VoiceChat() {
 
   return (
     <>
-      {/* Conversation panel — aparece abaixo do card */}
+      {/* Conversation panel — à direita do card */}
       {isOpen && (
         <div
           style={{
             position: 'fixed',
-            left: '16px',
-            top: '290px',
-            width: '180px',
+            left: '204px',
+            top: '64px',
+            width: '260px',
             backgroundColor: 'rgba(18, 32, 8, 0.96)',
             borderRadius: '16px',
             border: '1px solid rgba(92, 184, 92, 0.35)',
@@ -170,8 +170,6 @@ export default function VoiceChat() {
             padding: '16px',
             zIndex: 50,
             boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
-            maxHeight: '320px',
-            overflowY: 'auto',
           }}
         >
           {/* Header do painel */}
