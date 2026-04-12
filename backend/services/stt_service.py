@@ -1,99 +1,73 @@
 """
-stt_service.py — Transcrição de áudio local com Vosk (offline, pt-BR).
+stt_service.py — Transcrição de áudio via Gemini API (pt-BR).
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
 import tempfile
-import wave
+
+from config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
-
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'vosk-model-pt')
-SAMPLE_RATE = 16000
-
-_model = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        if not os.path.isdir(MODEL_PATH):
-            raise RuntimeError(
-                f"Modelo Vosk não encontrado em: {MODEL_PATH}\n"
-                "Execute no Pi:\n"
-                "  cd ~/Smartzoo/backend\n"
-                "  wget https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip\n"
-                "  unzip vosk-model-small-pt-0.3.zip\n"
-                "  mv vosk-model-small-pt-0.3 vosk-model-pt"
-            )
-        from vosk import Model  # type: ignore
-        logger.info("Carregando modelo Vosk de: %s", MODEL_PATH)
-        _model = Model(MODEL_PATH)
-        logger.info("Modelo Vosk carregado.")
-    return _model
 
 
 def transcribe(audio_bytes: bytes) -> str:
     """
     Recebe bytes de áudio (qualquer formato suportado pelo ffmpeg),
-    converte para WAV 16kHz mono e transcreve com Vosk.
-    Retorna o texto transcrito (pode ser vazio se não entendeu nada).
+    converte para MP3 e envia ao Gemini para transcrição.
+    Retorna o texto transcrito.
     """
-    from vosk import KaldiRecognizer  # type: ignore
+    from google import genai  # type: ignore
+    from google.genai import types  # type: ignore
 
-    model = _get_model()
-
-    # Salva áudio recebido em arquivo temporário
-    with tempfile.NamedTemporaryFile(suffix='.audio', delete=False) as f:
+    # Converte para MP3 via ffmpeg (Gemini suporta mp3 nativamente)
+    with tempfile.NamedTemporaryFile(suffix='.input', delete=False) as f:
         f.write(audio_bytes)
         input_path = f.name
 
-    output_path = input_path + '.wav'
+    output_path = input_path + '.mp3'
 
     try:
-        # Converte para WAV 16kHz mono via ffmpeg
         subprocess.run(
             [
                 'ffmpeg', '-i', input_path,
-                '-ar', str(SAMPLE_RATE),
-                '-ac', '1',
-                '-f', 'wav',
+                '-ar', '16000', '-ac', '1',
+                '-b:a', '64k',
                 output_path,
                 '-y', '-loglevel', 'error',
             ],
             check=True,
         )
 
-        # Transcreve com Vosk
-        with wave.open(output_path, 'rb') as wf:
-            rec = KaldiRecognizer(model, wf.getframerate())
-            text_parts = []
+        with open(output_path, 'rb') as f:
+            mp3_bytes = f.read()
 
-            while True:
-                data = wf.readframes(4000)
-                if not data:
-                    break
-                if rec.AcceptWaveform(data):
-                    result = json.loads(rec.Result())
-                    part = result.get('text', '').strip()
-                    if part:
-                        text_parts.append(part)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=mp3_bytes, mime_type='audio/mp3'),
+                (
+                    "Transcreva este áudio em português do Brasil. "
+                    "Retorne apenas o texto transcrito, sem pontuação excessiva, "
+                    "sem explicações e sem aspas."
+                ),
+            ],
+        )
 
-            final = json.loads(rec.FinalResult())
-            part = final.get('text', '').strip()
-            if part:
-                text_parts.append(part)
-
-        return ' '.join(text_parts)
+        text = response.text.strip() if response.text else ''
+        logger.info("Transcrição Gemini: '%s'", text)
+        return text
 
     except subprocess.CalledProcessError as exc:
-        logger.error("ffmpeg falhou ao converter áudio: %s", exc)
+        logger.error("ffmpeg falhou: %s", exc)
         raise RuntimeError("Erro ao converter áudio.") from exc
+    except Exception as exc:
+        logger.error("Erro na transcrição Gemini: %s", exc)
+        raise RuntimeError("Erro na transcrição.") from exc
     finally:
         if os.path.exists(input_path):
             os.unlink(input_path)
