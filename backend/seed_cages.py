@@ -14,14 +14,14 @@ import sys
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "smartzoo.db"))
 
 CAGES = [
-    # id, animal_name, species, location_x, location_y
-    ("cage01", "Leão",        "Panthera leo",             0.27, 0.60),
-    ("cage02", "Elefante",    "Loxodonta africana",       0.68, 0.22),
-    ("cage03", "Girafa",      "Giraffa camelopardalis",   0.63, 0.38),
-    ("cage04", "Hipopótamo",  "Hippopotamus amphibius",   0.52, 0.72),
-    ("cage05", "Zebra",       "Equus quagga",             0.21, 0.45),
-    ("cage06", "Gorila",      "Gorilla gorilla",          0.60, 0.55),
-    ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.83, 0.58),
+    # id, animal_name, species, location_x, location_y, zoo_area
+    ("cage01", "Leão",        "Panthera leo",             0.27, 0.60, "Savana Africana"),
+    ("cage02", "Elefante",    "Loxodonta africana",       0.68, 0.22, "Área dos Elefantes"),
+    ("cage03", "Girafa",      "Giraffa camelopardalis",   0.63, 0.38, "Savana Africana"),
+    ("cage04", "Hipopótamo",  "Hippopotamus amphibius",   0.52, 0.72, "Lagoa dos Hipopótamos"),
+    ("cage05", "Zebra",       "Equus quagga",             0.21, 0.45, "Savana Africana"),
+    ("cage06", "Gorila",      "Gorilla gorilla",          0.60, 0.55, "Área dos Primatas"),
+    ("cage07", "Flamingo",    "Phoenicopterus roseus",    0.83, 0.58, "Parque das Aves"),
 ]
 
 # Descrições de zona em português — aplicadas a todas as jaulas
@@ -44,23 +44,24 @@ def seed():
     cur = conn.cursor()
 
     # Jaulas
-    for cage_id, name, species, lx, ly in CAGES:
+    for cage_id, name, species, lx, ly, zoo_area in CAGES:
         cur.execute(
             """
-            INSERT INTO cages (id, animal_name, species, location_x, location_y)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO cages (id, animal_name, species, location_x, location_y, zoo_area)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 animal_name = excluded.animal_name,
                 species     = excluded.species,
                 location_x  = excluded.location_x,
-                location_y  = excluded.location_y
+                location_y  = excluded.location_y,
+                zoo_area    = excluded.zoo_area
             """,
-            (cage_id, name, species, lx, ly),
+            (cage_id, name, species, lx, ly, zoo_area),
         )
-        print(f"  {cage_id}: {name}  pos=({lx}, {ly})")
+        print(f"  {cage_id}: {name}  área={zoo_area}  pos=({lx}, {ly})")
 
     # Zonas
-    for cage_id, _, _, _, _ in CAGES:
+    for cage_id, _, _, _, _, _ in CAGES:
         for zone_key, description in ZONE_LABELS:
             cur.execute(
                 """

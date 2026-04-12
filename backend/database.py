@@ -35,7 +35,8 @@ def init_db() -> None:
                 animal_name TEXT NOT NULL,
                 species     TEXT,
                 location_x  REAL,
-                location_y  REAL
+                location_y  REAL,
+                zoo_area    TEXT
             );
 
             CREATE TABLE IF NOT EXISTS cage_zones (
@@ -70,6 +71,14 @@ def init_db() -> None:
                 ON snapshots(cage_id, timestamp);
         """)
         conn.commit()
+
+        # Migração: adiciona zoo_area se não existir (bancos antigos)
+        cols = [r[1] for r in cur.execute("PRAGMA table_info(cages)").fetchall()]
+        if "zoo_area" not in cols:
+            cur.execute("ALTER TABLE cages ADD COLUMN zoo_area TEXT")
+            conn.commit()
+            logger.info("Coluna zoo_area adicionada à tabela cages.")
+
         logger.info("Banco de dados inicializado em: %s", DB_PATH)
     finally:
         conn.close()
@@ -251,18 +260,29 @@ def get_activity_context_all():
                     {"hour": p["hour"], "active_ratio": round(p["active_ratio"], 2)}
                 )
 
+        def _period(hour: int) -> str:
+            if 6 <= hour < 12:
+                return "manhã"
+            if 12 <= hour < 18:
+                return "tarde"
+            if 18 <= hour < 24:
+                return "noite"
+            return "madrugada"
+
         result = []
         for row in latest:
             cid = row["cage_id"]
+            peaks = peaks_map.get(cid, [])
+            peak_periods = list(dict.fromkeys(_period(p["hour"]) for p in peaks))
             result.append(
                 {
                     "cage_id": cid,
                     "animal_name": row["animal_name"],
                     "species": row.get("species"),
                     "status": row["status"],
-                    "activity_level": row["activity_level"],
-                    "zone_label": row.get("zone_label"),
-                    "peak_hours": peaks_map.get(cid, []),
+                    "activity_level": round(row["activity_level"], 2),
+                    "zoo_area": row.get("zoo_area") or "não informada",
+                    "peak_periods": peak_periods,
                 }
             )
         return result
