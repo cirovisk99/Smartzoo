@@ -56,27 +56,27 @@ ANIMALS = [
     (
         "cage03", "Girafa", "Giraffa camelopardalis",
         0.63, 0.38,
-        "demo_images/cage03_girafa.jpg",
+        "../frontend/public/animais/girafa.webp",
     ),
     (
         "cage04", "Hipopótamo", "Hippopotamus amphibius",
         0.52, 0.72,
-        "demo_images/cage04_hipopotamo.jpg",
+        "../frontend/public/animais/hipopotamo.jpg",
     ),
     (
         "cage05", "Zebra", "Equus quagga",
         0.21, 0.45,
-        "demo_images/cage05_zebra.jpg",
+        "../frontend/public/animais/zebra.jpg",
     ),
     (
         "cage06", "Gorila", "Gorilla gorilla",
         0.60, 0.55,
-        "demo_images/cage06_gorila.jpg",
+        "../frontend/public/animais/gorila.jpg",
     ),
     (
         "cage07", "Flamingo", "Phoenicopterus roseus",
         0.83, 0.58,
-        "demo_images/cage07_flamingo.jpg",
+        "../frontend/public/animais/flamingo.jpg",
     ),
 ]
 
