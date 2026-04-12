@@ -1,6 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { sendChatMessage } from '../api.js'
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 const STATUS = {
   IDLE: 'idle',
   LISTENING: 'listening',
@@ -8,6 +10,10 @@ const STATUS = {
   SPEAKING: 'speaking',
   ERROR: 'error',
 }
+
+const SILENCE_THRESHOLD = 12   // nível de amplitude (0-255) abaixo = silêncio
+const SILENCE_DELAY_MS  = 1500 // ms de silêncio antes de parar
+const MAX_RECORD_MS     = 12000 // segurança: para após 12s
 
 function stripMarkdown(text) {
   return text
@@ -21,57 +27,68 @@ function stripMarkdown(text) {
 }
 
 export default function VoiceChat() {
-  const [status, setStatus] = useState(STATUS.IDLE)
-  const [isOpen, setIsOpen] = useState(false)
+  const [status, setStatus]     = useState(STATUS.IDLE)
+  const [isOpen, setIsOpen]     = useState(false)
   const [transcript, setTranscript] = useState('')
   const [response, setResponse] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
-  const recognitionRef = useRef(null)
-  const transcriptRef = useRef('')
+  const mediaRecorderRef = useRef(null)
+  const audioCtxRef      = useRef(null)
+  const silenceTimerRef  = useRef(null)
+  const maxTimerRef      = useRef(null)
+  const chunksRef        = useRef([])
 
   const stopSpeaking = useCallback(() => {
     if (window.speechSynthesis) window.speechSynthesis.cancel()
   }, [])
 
+  const cleanup = useCallback(() => {
+    clearTimeout(silenceTimerRef.current)
+    clearTimeout(maxTimerRef.current)
+    silenceTimerRef.current = null
+    maxTimerRef.current = null
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    mediaRecorderRef.current = null
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close()
+      audioCtxRef.current = null
+    }
+    chunksRef.current = []
+  }, [])
+
   const close = useCallback(() => {
     stopSpeaking()
-    if (recognitionRef.current) {
-      recognitionRef.current.abort()
-      recognitionRef.current = null
-    }
+    cleanup()
     setIsOpen(false)
     setStatus(STATUS.IDLE)
     setTranscript('')
     setResponse('')
     setErrorMsg('')
-    transcriptRef.current = ''
-  }, [stopSpeaking])
+  }, [stopSpeaking, cleanup])
 
   const speakResponse = useCallback((text) => {
     if (!window.speechSynthesis) { setStatus(STATUS.IDLE); return }
     const clean = stripMarkdown(text)
     const utterance = new SpeechSynthesisUtterance(clean)
     utterance.lang = 'pt-BR'
-    utterance.rate = 1.1    // mais animado
-    utterance.pitch = 1.5   // mais agudo, infantil
+    utterance.rate = 1.1
+    utterance.pitch = 1.5
     utterance.volume = 1.0
-
-    // Prefere voz feminina pt-BR (soa mais como personagem animado)
     const voices = window.speechSynthesis.getVoices()
     const ptFemale = voices.find(v => v.lang.startsWith('pt') && /female|feminino|woman/i.test(v.name))
     const ptAny    = voices.find(v => v.lang.startsWith('pt'))
     if (ptFemale) utterance.voice = ptFemale
     else if (ptAny) utterance.voice = ptAny
-
     utterance.onend = () => setStatus(STATUS.IDLE)
     utterance.onerror = () => setStatus(STATUS.IDLE)
     window.speechSynthesis.speak(utterance)
   }, [])
 
-  const sendTranscript = useCallback(async (text) => {
+  const sendToChat = useCallback(async (text) => {
     if (!text.trim()) { setStatus(STATUS.IDLE); return }
-    setStatus(STATUS.PROCESSING)
     const { data, error } = await sendChatMessage(text.trim(), true)
     if (error || !data) {
       setErrorMsg(error || 'Erro ao obter resposta.')
@@ -83,73 +100,132 @@ export default function VoiceChat() {
     speakResponse(data.response)
   }, [speakResponse])
 
-  const startListening = useCallback(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setErrorMsg('Reconhecimento de voz não suportado. Use Chrome ou Edge.')
+  const transcribeAndChat = useCallback(async (audioBlob) => {
+    setStatus(STATUS.PROCESSING)
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+
+      const res = await fetch(`${BASE_URL}/api/transcribe`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        setErrorMsg('Erro na transcrição.')
+        setStatus(STATUS.ERROR)
+        return
+      }
+
+      const { text } = await res.json()
+
+      if (!text.trim()) {
+        setErrorMsg('Não entendi. Tente falar mais perto do microfone.')
+        setStatus(STATUS.ERROR)
+        return
+      }
+
+      setTranscript(text)
+      await sendToChat(text)
+    } catch {
+      setErrorMsg('Erro ao processar áudio.')
       setStatus(STATUS.ERROR)
-      setIsOpen(true)
-      return
     }
+  }, [sendToChat])
+
+  const startListening = useCallback(async () => {
     stopSpeaking()
     setTranscript('')
     setResponse('')
     setErrorMsg('')
-    transcriptRef.current = ''
+    chunksRef.current = []
     setIsOpen(true)
     setStatus(STATUS.LISTENING)
 
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'pt-BR'
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognitionRef.current = recognition
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    } catch (err) {
+      setErrorMsg('Acesso ao microfone negado: ' + err.message)
+      setStatus(STATUS.ERROR)
+      return
+    }
 
-    let errorFired = false
+    // AudioContext para detecção de silêncio
+    const audioCtx = new AudioContext()
+    audioCtxRef.current = audioCtx
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 256
+    audioCtx.createMediaStreamSource(stream).connect(analyser)
+    const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
-    recognition.onresult = (event) => {
-      let final = ''
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript
-        if (event.results[i].isFinal) final += t
-        else interim += t
+    // MediaRecorder
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm'
+
+    const recorder = new MediaRecorder(stream, { mimeType })
+    mediaRecorderRef.current = recorder
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
+    }
+
+    recorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop())
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close()
+        audioCtxRef.current = null
       }
-      const text = final || interim
-      transcriptRef.current = text
-      setTranscript(text)
+      clearTimeout(silenceTimerRef.current)
+      clearTimeout(maxTimerRef.current)
+      const blob = new Blob(chunksRef.current, { type: mimeType })
+      transcribeAndChat(blob)
     }
 
-    recognition.onend = () => {
-      recognitionRef.current = null
-      if (!errorFired) sendTranscript(transcriptRef.current)
+    recorder.start(200)
+
+    // Segurança: para após MAX_RECORD_MS
+    maxTimerRef.current = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop()
+    }, MAX_RECORD_MS)
+
+    // Detecção de silêncio — começa após 800ms para não cortar no início
+    const stopRecording = () => {
+      if (recorder.state === 'recording') recorder.stop()
     }
 
-    recognition.onerror = (event) => {
-      errorFired = true
-      recognitionRef.current = null
-      setErrorMsg(`Erro de voz: "${event.error}" — tente novamente`)
-      setStatus(STATUS.ERROR)
-    }
+    setTimeout(() => {
+      const checkSilence = () => {
+        if (recorder.state !== 'recording') return
+        analyser.getByteFrequencyData(dataArray)
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
 
-    try { recognition.start() } catch {
-      setErrorMsg('Não foi possível iniciar o microfone.')
-      setStatus(STATUS.ERROR)
-    }
-  }, [stopSpeaking, sendTranscript])
+        if (avg < SILENCE_THRESHOLD) {
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(stopRecording, SILENCE_DELAY_MS)
+          }
+        } else {
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current)
+            silenceTimerRef.current = null
+          }
+        }
+        requestAnimationFrame(checkSilence)
+      }
+      checkSilence()
+    }, 800)
+  }, [stopSpeaking, transcribeAndChat])
 
   useEffect(() => {
-    return () => {
-      stopSpeaking()
-      if (recognitionRef.current) recognitionRef.current.abort()
-    }
-  }, [stopSpeaking])
+    return () => { stopSpeaking(); cleanup() }
+  }, [stopSpeaking, cleanup])
 
-  const isListening   = status === STATUS.LISTENING
-  const isProcessing  = status === STATUS.PROCESSING
-  const isSpeaking    = status === STATUS.SPEAKING
-  const isError       = status === STATUS.ERROR
-  const isIdle        = status === STATUS.IDLE
+  const isListening  = status === STATUS.LISTENING
+  const isProcessing = status === STATUS.PROCESSING
+  const isSpeaking   = status === STATUS.SPEAKING
+  const isError      = status === STATUS.ERROR
+  const isIdle       = status === STATUS.IDLE
 
   const statusLabel = isListening  ? 'Ouvindo...'
                     : isProcessing ? 'Pensando...'
@@ -158,56 +234,37 @@ export default function VoiceChat() {
 
   return (
     <>
-      {/* Conversation panel — à direita do card */}
+      {/* Painel de conversa — à direita do card */}
       {isOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            left: '204px',
-            top: '64px',
-            width: '260px',
-            backgroundColor: 'rgba(18, 32, 8, 0.96)',
-            borderRadius: '16px',
-            border: '1px solid rgba(92, 184, 92, 0.35)',
-            backdropFilter: 'blur(14px)',
-            padding: '16px',
-            zIndex: 50,
-            boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
-          }}
-        >
-          {/* Header do painel */}
+        <div style={{
+          position: 'fixed',
+          left: '204px',
+          top: '64px',
+          width: '260px',
+          backgroundColor: 'rgba(18, 32, 8, 0.96)',
+          borderRadius: '16px',
+          border: '1px solid rgba(92, 184, 92, 0.35)',
+          backdropFilter: 'blur(14px)',
+          padding: '16px',
+          zIndex: 50,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-lime)' }}>
-              Juba
-            </span>
-            <button
-              onClick={close}
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '8px',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                color: 'rgba(255,255,255,0.8)',
-                fontSize: '18px',
-                lineHeight: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              aria-label="Fechar"
-            >×</button>
+            <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-lime)' }}>Juba</span>
+            <button onClick={close} style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px',
+              width: '28px', height: '28px', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.8)', fontSize: '18px', lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }} aria-label="Fechar">×</button>
           </div>
 
-          {/* Status */}
           {statusLabel && (
             <p style={{ fontSize: '13px', color: 'var(--color-lime)', fontWeight: 600, margin: '0 0 8px 0' }}>
               {statusLabel}
             </p>
           )}
 
-          {/* Transcript */}
           {transcript && (
             <div style={{ marginBottom: '10px' }}>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', margin: '0 0 3px 0' }}>Você disse:</p>
@@ -217,12 +274,10 @@ export default function VoiceChat() {
             </div>
           )}
 
-          {/* Resposta */}
           {response && (
             <div style={{
               backgroundColor: 'rgba(92, 184, 92, 0.1)',
-              borderRadius: '10px',
-              padding: '10px 12px',
+              borderRadius: '10px', padding: '10px 12px',
               borderLeft: '3px solid var(--color-lime)',
             }}>
               <p style={{ fontSize: '14px', color: '#fff', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
@@ -231,34 +286,24 @@ export default function VoiceChat() {
             </div>
           )}
 
-          {/* Erro */}
           {isError && errorMsg && (
             <p style={{ color: '#e74c3c', fontSize: '13px', margin: 0 }}>{errorMsg}</p>
           )}
 
-          {/* Hint inicial */}
           {isIdle && !response && !errorMsg && (
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', margin: 0 }}>
-              Pergunte sobre os animais, horários ou localização no zoo!
+              Pergunte sobre os animais, horários ou localização!
             </p>
           )}
 
-          {/* Botão nova pergunta */}
           {isIdle && (response || isError) && (
             <div style={{ marginTop: '10px', textAlign: 'center' }}>
-              <button
-                onClick={startListening}
-                style={{
-                  backgroundColor: 'rgba(92,184,92,0.15)',
-                  border: '1px solid var(--color-lime)',
-                  borderRadius: '8px',
-                  padding: '7px 16px',
-                  color: 'var(--color-lime)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
+              <button onClick={startListening} style={{
+                backgroundColor: 'rgba(92,184,92,0.15)',
+                border: '1px solid var(--color-lime)', borderRadius: '8px',
+                padding: '7px 16px', color: 'var(--color-lime)',
+                fontSize: '13px', cursor: 'pointer', fontWeight: 600,
+              }}>
                 🎤 Fazer outra pergunta
               </button>
             </div>
@@ -266,57 +311,39 @@ export default function VoiceChat() {
         </div>
       )}
 
-      {/* Card do mascote — canto superior esquerdo */}
-      <div
-        style={{
-          position: 'fixed',
-          left: '16px',
-          top: '64px',
-          width: '172px',
-          backgroundColor: 'rgba(18, 32, 8, 0.92)',
-          borderRadius: '20px',
-          border: `2px solid ${isListening ? '#e74c3c' : 'rgba(92,184,92,0.5)'}`,
-          backdropFilter: 'blur(12px)',
-          boxShadow: isListening
-            ? '0 0 0 4px rgba(192,57,43,0.25), 0 8px 32px rgba(0,0,0,0.6)'
-            : '0 8px 32px rgba(0,0,0,0.6)',
-          zIndex: 50,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '6px 8px 12px',
-          gap: '6px',
-          animation: isListening ? 'mic-pulse 1.4s ease-in-out infinite' : 'none',
-          transition: 'border-color 0.2s',
-        }}
-      >
-        {/* Imagem do mascote */}
+      {/* Card do mascote */}
+      <div style={{
+        position: 'fixed', left: '16px', top: '64px', width: '172px',
+        backgroundColor: 'rgba(18, 32, 8, 0.92)',
+        borderRadius: '20px',
+        border: `2px solid ${isListening ? '#e74c3c' : 'rgba(92,184,92,0.5)'}`,
+        backdropFilter: 'blur(12px)',
+        boxShadow: isListening
+          ? '0 0 0 4px rgba(192,57,43,0.25), 0 8px 32px rgba(0,0,0,0.6)'
+          : '0 8px 32px rgba(0,0,0,0.6)',
+        zIndex: 50,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '6px 8px 12px', gap: '6px',
+        animation: isListening ? 'mic-pulse 1.4s ease-in-out infinite' : 'none',
+        transition: 'border-color 0.2s',
+      }}>
         <img
           src="/mascote-agente.png"
           alt="Juba, mascote do SmartZoo"
           style={{
-            width: '152px',
-            height: '152px',
-            objectFit: 'cover',
-            objectPosition: 'top',
+            width: '152px', height: '152px',
+            objectFit: 'cover', objectPosition: 'top',
             borderRadius: '14px',
             filter: isListening ? 'drop-shadow(0 0 8px rgba(231,76,60,0.6))' : 'none',
             transition: 'filter 0.3s',
           }}
         />
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-lime)' }}>Juba</span>
 
-        {/* Nome */}
-        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-lime)' }}>
-          Juba
-        </span>
-
-        {/* Indicador de status ou botão */}
         {statusLabel ? (
           <span style={{
-            fontSize: '12px',
-            fontWeight: 600,
+            fontSize: '12px', fontWeight: 600, textAlign: 'center',
             color: isListening ? '#e74c3c' : 'var(--color-lime)',
-            textAlign: 'center',
           }}>
             {statusLabel}
           </span>
@@ -326,16 +353,10 @@ export default function VoiceChat() {
             disabled={!isIdle}
             style={{
               backgroundColor: isIdle ? 'var(--color-lime)' : 'rgba(92,184,92,0.3)',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '8px 10px',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: 700,
+              border: 'none', borderRadius: '12px', padding: '8px 10px',
+              color: '#fff', fontSize: '12px', fontWeight: 700,
               cursor: isIdle ? 'pointer' : 'default',
-              textAlign: 'center',
-              lineHeight: 1.3,
-              width: '100%',
+              textAlign: 'center', lineHeight: 1.3, width: '100%',
               transition: 'background-color 0.2s',
             }}
             aria-label="Toque para pedir dicas para o Juba"

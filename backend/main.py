@@ -18,6 +18,7 @@ from database import init_db
 from routers.cages import router as cages_router
 from routers.chat import router as chat_router
 from routers.route import router as route_router
+from routers.transcribe import router as transcribe_router
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -52,6 +53,7 @@ app.add_middleware(
 app.include_router(cages_router)
 app.include_router(chat_router)
 app.include_router(route_router)
+app.include_router(transcribe_router)
 
 
 # ---------------------------------------------------------------------------
