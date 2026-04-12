@@ -1,6 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const TIMEOUT_MS = 10000
+const CHAT_TIMEOUT_MS = 30000
 
 /**
  * Fetch wrapper with timeout and graceful error handling.
@@ -8,15 +9,16 @@ const TIMEOUT_MS = 10000
  */
 async function apiFetch(path, options = {}) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const { timeout = TIMEOUT_MS, ...fetchOptions } = options
+  const timer = setTimeout(() => controller.abort(), timeout)
 
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
+        ...(fetchOptions.headers || {}),
       },
     })
 
@@ -72,6 +74,7 @@ export async function sendChatMessage(message, voice = false) {
   return apiFetch('/api/chat', {
     method: 'POST',
     body: JSON.stringify({ message, voice }),
+    timeout: CHAT_TIMEOUT_MS,
   })
 }
 
