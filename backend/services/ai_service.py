@@ -95,16 +95,12 @@ def _build_context(zoo_context: list) -> str:
 def _call_gemini(system_prompt: str, user_message: str) -> str:
     try:
         from google import genai  # type: ignore
-        from google.genai import types  # type: ignore
 
-        client = genai.Client(
-            api_key=GEMINI_API_KEY,
-            http_options={"api_version": "v1"},
-        )
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        full_prompt = f"{system_prompt}\n\nPergunta do visitante: {user_message}"
         response = client.models.generate_content(
             model=GEMINI_MODEL,
-            config=types.GenerateContentConfig(system_instruction=system_prompt),
-            contents=user_message,
+            contents=full_prompt,
         )
         return response.text.strip()
     except Exception as exc:
