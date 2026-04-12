@@ -105,6 +105,8 @@ export default function VoiceChat() {
     recognition.interimResults = true
     recognitionRef.current = recognition
 
+    let errorFired = false
+
     recognition.onresult = (event) => {
       let final = ''
       let interim = ''
@@ -120,12 +122,13 @@ export default function VoiceChat() {
 
     recognition.onend = () => {
       recognitionRef.current = null
-      sendTranscript(transcriptRef.current)
+      if (!errorFired) sendTranscript(transcriptRef.current)
     }
 
     recognition.onerror = (event) => {
+      errorFired = true
       recognitionRef.current = null
-      setErrorMsg(`Erro: ${event.error}`)
+      setErrorMsg(`Erro de voz: "${event.error}" — tente novamente`)
       setStatus(STATUS.ERROR)
     }
 
