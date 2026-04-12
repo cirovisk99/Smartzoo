@@ -125,15 +125,8 @@ export default function VoiceChat() {
 
     recognition.onerror = (event) => {
       recognitionRef.current = null
-      if (event.error === 'no-speech') {
-        setStatus(STATUS.IDLE)
-      } else if (event.error === 'not-allowed') {
-        setErrorMsg('Acesso ao microfone negado. Verifique as permissões do navegador.')
-        setStatus(STATUS.ERROR)
-      } else {
-        setErrorMsg('Erro no microfone. Tente novamente.')
-        setStatus(STATUS.ERROR)
-      }
+      setErrorMsg(`Erro: ${event.error}`)
+      setStatus(STATUS.ERROR)
     }
 
     try { recognition.start() } catch {
