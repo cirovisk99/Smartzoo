@@ -35,16 +35,25 @@ export default function VoiceChat() {
 
   const mediaRecorderRef = useRef(null)
   const audioCtxRef      = useRef(null)
+  const ttsAudioCtxRef   = useRef(null)  // AudioContext dedicado ao TTS
+  const ttsSourceRef     = useRef(null)  // AudioBufferSourceNode em andamento
   const silenceTimerRef  = useRef(null)
   const maxTimerRef      = useRef(null)
   const chunksRef        = useRef([])
 
-  const currentAudioRef = useRef(null)
+  // Desbloqueia o AudioContext na primeira interação do usuário
+  const unlockTtsCtx = useCallback(() => {
+    if (!ttsAudioCtxRef.current) {
+      ttsAudioCtxRef.current = new AudioContext()
+    } else if (ttsAudioCtxRef.current.state === 'suspended') {
+      ttsAudioCtxRef.current.resume()
+    }
+  }, [])
 
   const stopSpeaking = useCallback(() => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause()
-      currentAudioRef.current = null
+    if (ttsSourceRef.current) {
+      try { ttsSourceRef.current.stop() } catch {}
+      ttsSourceRef.current = null
     }
   }, [])
 
@@ -62,6 +71,16 @@ export default function VoiceChat() {
       audioCtxRef.current = null
     }
     chunksRef.current = []
+  }, [])
+
+  // Limpa o TTS AudioContext ao desmontar
+  useEffect(() => {
+    return () => {
+      if (ttsAudioCtxRef.current) {
+        ttsAudioCtxRef.current.close()
+        ttsAudioCtxRef.current = null
+      }
+    }
   }, [])
 
   const close = useCallback(() => {
@@ -83,14 +102,24 @@ export default function VoiceChat() {
         body: JSON.stringify({ text: clean }),
       })
       if (!res.ok) throw new Error('TTS falhou')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      currentAudioRef.current = audio
-      audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; setStatus(STATUS.IDLE) }
-      audio.onerror = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; setStatus(STATUS.IDLE) }
-      audio.play()
-    } catch {
+      const arrayBuffer = await res.arrayBuffer()
+
+      // Garante AudioContext desbloqueado
+      if (!ttsAudioCtxRef.current) {
+        ttsAudioCtxRef.current = new AudioContext()
+      }
+      const ctx = ttsAudioCtxRef.current
+      if (ctx.state === 'suspended') await ctx.resume()
+
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+      const source = ctx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(ctx.destination)
+      ttsSourceRef.current = source
+      source.onended = () => { ttsSourceRef.current = null; setStatus(STATUS.IDLE) }
+      source.start(0)
+    } catch (err) {
+      console.error('TTS error:', err)
       setStatus(STATUS.IDLE)
     }
   }, [])
@@ -142,6 +171,7 @@ export default function VoiceChat() {
   }, [sendToChat])
 
   const startListening = useCallback(async () => {
+    unlockTtsCtx()   // cria/resume AudioContext dentro da gesture do usuário
     stopSpeaking()
     setTranscript('')
     setResponse('')
