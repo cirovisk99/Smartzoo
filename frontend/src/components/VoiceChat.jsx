@@ -291,7 +291,7 @@ export default function VoiceChat() {
       >
         {/* Imagem do mascote */}
         <img
-          src="/mascote%20agente.png"
+          src="/mascote-agente.png"
           alt="Juba, mascote do SmartZoo"
           style={{
             width: '100px',
