@@ -62,6 +62,7 @@ class RouteSuggestion(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Pergunta do visitante")
+    voice: bool = Field(False, description="Se verdadeiro, usa prompt otimizado para resposta em voz (breve, sem markdown)")
 
 
 class ChatResponse(BaseModel):

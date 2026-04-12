@@ -65,13 +65,13 @@ export async function fetchCageSnapshot(cageId) {
 
 /**
  * POST /api/chat
- * Body: { message }
+ * Body: { message, voice? }
  * Returns { response }
  */
-export async function sendChatMessage(message) {
+export async function sendChatMessage(message, voice = false) {
   return apiFetch('/api/chat', {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, voice }),
   })
 }
 

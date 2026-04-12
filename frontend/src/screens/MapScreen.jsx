@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchStatus } from '../api.js'
+import VoiceChat from '../components/VoiceChat.jsx'
 
 const POLLING_INTERVAL_MS = 5000
 
@@ -49,17 +50,6 @@ export default function MapScreen() {
 
         {/* Nav buttons */}
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate('/chat')}
-            className="flex items-center gap-2 px-3 py-2 zoo-btn-ghost touch-target"
-            style={{ minHeight: '44px', fontSize: '15px' }}
-            aria-label="Chat com IA"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            Chat AI
-          </button>
           <button
             onClick={() => navigate('/route')}
             className="flex items-center gap-2 px-3 py-2 zoo-btn-lime touch-target"
@@ -151,6 +141,9 @@ export default function MapScreen() {
           <span>{error ? 'Offline' : 'Online'}</span>
         </div>
       </footer>
+
+      {/* Voice chat — floating mic + panel */}
+      <VoiceChat />
     </div>
   )
 }

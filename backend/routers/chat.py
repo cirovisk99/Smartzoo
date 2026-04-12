@@ -27,7 +27,7 @@ def chat(body: ChatRequest):
     """
     try:
         zoo_context = get_activity_context_all()
-        answer = ask_ai(message=body.message, zoo_context=zoo_context)
+        answer = ask_ai(message=body.message, zoo_context=zoo_context, voice=body.voice)
         return ChatResponse(response=answer)
     except Exception as exc:
         logger.exception("Erro em POST /api/chat")

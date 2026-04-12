@@ -63,6 +63,19 @@ Contexto atual do zoo:
 Use os dados de atividade histórica para enriquecer suas respostas quando relevante.
 Responda em português. Seja conciso (máximo 3 parágrafos)."""
 
+VOICE_SYSTEM_PROMPT_TEMPLATE = """Você é o guia virtual do SmartZoo. Sua resposta será lida em voz alta \
+para visitantes, então siga estas regras:
+- Responda em no máximo 2 frases curtas e diretas
+- Use linguagem natural e coloquial, adequada para todas as idades
+- Não use listas, asteriscos, hashtags, markdown ou qualquer formatação especial
+- Se o visitante perguntar sobre animais ativos, mencione nome e localização (zona/setor)
+- Se perguntar sobre um animal específico, mencione se está ativo ou dormindo agora
+
+Contexto atual do zoo (animais, status e localização):
+{context_json}
+
+Responda em português do Brasil."""
+
 FALLBACK_RESPONSE = (
     "Desculpe, nosso guia virtual está temporariamente indisponível. "
     "Mas posso dizer que nosso zoo tem animais incríveis esperando por você! "
@@ -117,12 +130,13 @@ def _call_openai(system_prompt: str, user_message: str) -> str:
 # Função pública
 # ---------------------------------------------------------------------------
 
-def ask_ai(message: str, zoo_context: list) -> str:
+def ask_ai(message: str, zoo_context: list, voice: bool = False) -> str:
     """
     Envia uma pergunta ao provedor de IA configurado,
     com contexto do zoo. Usa cache e fallback automático.
+    Quando voice=True, usa prompt otimizado para respostas curtas sem markdown.
     """
-    cache_key = _cache_key(message)
+    cache_key = _cache_key(message + ("_v" if voice else ""))
 
     # Verificar cache
     cached = _get_cached(cache_key)
@@ -139,7 +153,8 @@ def ask_ai(message: str, zoo_context: list) -> str:
         return FALLBACK_RESPONSE
 
     context_json = _build_context(zoo_context)
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(context_json=context_json)
+    template = VOICE_SYSTEM_PROMPT_TEMPLATE if voice else SYSTEM_PROMPT_TEMPLATE
+    system_prompt = template.format(context_json=context_json)
 
     try:
         if AI_PROVIDER == "openai":
