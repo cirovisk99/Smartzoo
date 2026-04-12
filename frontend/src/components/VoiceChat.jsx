@@ -155,14 +155,14 @@ export default function VoiceChat() {
 
   return (
     <>
-      {/* Conversation panel — aparece à esquerda do card */}
+      {/* Conversation panel — aparece abaixo do card */}
       {isOpen && (
         <div
           style={{
             position: 'fixed',
-            right: '188px',
-            bottom: '60px',
-            width: '280px',
+            right: '16px',
+            top: '290px',
+            width: '180px',
             backgroundColor: 'rgba(18, 32, 8, 0.96)',
             borderRadius: '16px',
             border: '1px solid rgba(92, 184, 92, 0.35)',
@@ -265,13 +265,13 @@ export default function VoiceChat() {
         </div>
       )}
 
-      {/* Card do mascote — fixo no lado direito */}
+      {/* Card do mascote — canto superior direito */}
       <div
         style={{
           position: 'fixed',
           right: '16px',
-          bottom: '56px',
-          width: '160px',
+          top: '64px',
+          width: '172px',
           backgroundColor: 'rgba(18, 32, 8, 0.92)',
           borderRadius: '20px',
           border: `2px solid ${isListening ? '#e74c3c' : 'rgba(92,184,92,0.5)'}`,
@@ -283,8 +283,8 @@ export default function VoiceChat() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '12px 10px 14px',
-          gap: '8px',
+          padding: '6px 8px 12px',
+          gap: '6px',
           animation: isListening ? 'mic-pulse 1.4s ease-in-out infinite' : 'none',
           transition: 'border-color 0.2s',
         }}
@@ -294,9 +294,11 @@ export default function VoiceChat() {
           src="/mascote-agente.png"
           alt="Juba, mascote do SmartZoo"
           style={{
-            width: '100px',
-            height: '100px',
-            objectFit: 'contain',
+            width: '152px',
+            height: '152px',
+            objectFit: 'cover',
+            objectPosition: 'top',
+            borderRadius: '14px',
             filter: isListening ? 'drop-shadow(0 0 8px rgba(231,76,60,0.6))' : 'none',
             transition: 'filter 0.3s',
           }}
